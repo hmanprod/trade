@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="hero min-h-[80vh]">
+    <div class="card w-96 bg-base-200 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title justify-center text-2xl mb-4">Trade</h2>
+            {% if error %}
+            <div role="alert" class="alert alert-error mb-4">Invalid password</div>
+            {% endif %}
+            <form action="/login" method="POST">
+                <fieldset class="fieldset">
+                    <label class="fieldset-label">Password</label>
+                    <input type="password" name="password" class="input w-full" placeholder="Enter admin password" required>
+                </fieldset>
+                <button class="btn btn-primary w-full mt-4">Sign in</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
