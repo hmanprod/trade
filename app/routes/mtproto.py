@@ -23,7 +23,7 @@ _pending_clients: dict[str, dict] = {}
 
 
 @router.post("/send-code")
-async def send_code(request: Request, phone: str = Form(...), label: str = Form("")):
+async def send_code(request: Request, phone: str = Form(...)):
     guard = _guard(request)
     if guard:
         return guard
@@ -37,26 +37,19 @@ async def send_code(request: Request, phone: str = Form(...), label: str = Form(
         await client.disconnect()
         return HTMLResponse(f"""
             <div class="alert alert-error mb-3">{e}</div>
-            <div id="add-account-form" class="mt-2">
-                <form hx-post="/api/mtproto/send-code" hx-target="#add-account-form"
-                      class="flex gap-3 items-end">
-                    <div class="flex-1">
-                        <label class="form-label mb-2">Phone number</label>
-                        <input type="text" name="phone" class="input w-full"
-                               placeholder="+33612345678" value="{phone}" required>
-                    </div>
-                    <div class="flex-[0.5]">
-                        <label class="form-label mb-2">Account Label</label>
-                        <input type="text" name="label" class="input w-full"
-                               placeholder="e.g. Primary Account" value="{label}">
-                    </div>
-                    <button class="btn btn-primary">Connect</button>
-                </form>
-            </div>
+            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="outerHTML"
+                  class="flex gap-3 items-end mt-3">
+                <div class="flex-1">
+                    <label class="fieldset-label">Phone number</label>
+                    <input type="text" name="phone" class="input"
+                           placeholder="+33612345678" value="{phone}" required>
+                </div>
+                <button class="btn btn-primary">Send code</button>
+            </form>
         """)
 
     token = str(id(client))
-    _pending_clients[token] = {"client": client, "phone": phone, "phone_code_hash": sent.phone_code_hash, "label": label}
+    _pending_clients[token] = {"client": client, "phone": phone, "phone_code_hash": sent.phone_code_hash}
 
     return HTMLResponse(f"""
         <form hx-post="/api/mtproto/verify" hx-target="#add-account-form"
@@ -91,7 +84,6 @@ async def verify(
     client = pending["client"]
     phone = pending["phone"]
     phone_code_hash = pending["phone_code_hash"]
-    label = pending["label"]
 
     if password:
         try:
@@ -134,7 +126,10 @@ async def verify(
     cipher = Fernet(settings.encryption_key.encode())
     encrypted = cipher.encrypt(session_str.encode()).decode()
 
-    session_row = MTProtoSession(phone_number=phone, string_session=encrypted, is_connected=True, label=label or None)
+    me = await client.get_me()
+    display_name = me.username or me.first_name or phone
+
+    session_row = MTProtoSession(phone_number=phone, string_session=encrypted, is_connected=True, label=display_name)
     db.add(session_row)
     await db.commit()
     await db.refresh(session_row)
@@ -252,19 +247,14 @@ async def add_form(request: Request):
                     <div class="block-subtitle">Enter phone number to receive an official MTProto connection code</div>
                 </div>
             </div>
-            <form hx-post="/api/mtproto/send-code" hx-target="#add-account-form" hx-swap="innerHTML"
-                  class="flex gap-3 items-end">
-                <div class="flex-1">
-                    <label class="form-label mb-2">Phone number (International format)</label>
+            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="outerHTML"
+                  class="flex gap-3 items-end" style="padding-top:12px;">
+                <div style="flex:3;">
+                    <label class="fieldset-label">Phone Number</label>
                     <input type="text" name="phone" class="input"
                            placeholder="+33612345678" required>
                 </div>
-                <div class="flex-[0.5]">
-                    <label class="form-label mb-2">Account Label</label>
-                    <input type="text" name="label" class="input"
-                           placeholder="e.g. Scraper 1">
-                </div>
-                <button class="btn btn-primary">Send Code</button>
+                <button class="btn btn-primary" style="white-space:nowrap;">Send Verification Code</button>
             </form>
         </div>
     """)
