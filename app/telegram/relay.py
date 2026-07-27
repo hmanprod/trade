@@ -1,9 +1,10 @@
 from telethon import events
 
-from app.telegram.client import telethon_manager
+from app.telegram.client import multi_telethon_manager
 
 _dedup_cache: set[int] = set()
 DEDUP_MAX_SIZE = 10000
+_event_handlers: dict[int, object] = {}
 
 
 def _dedup_key(msg_id: int, chat_id: int) -> int:
@@ -20,33 +21,39 @@ def _check_and_cache(msg_id: int, chat_id: int) -> bool:
     return False
 
 
-async def start_relay(source_group_ids: list[int], destination_id: int, keywords: list[str] | None = None):
-    client = telethon_manager.client
-    if not client:
-        return
+async def start_relay(source_group_ids: dict[int, list[int]], destination_id: int, keywords: list[str] | None = None):
+    for session_id, client in multi_telethon_manager.get_all():
+        group_ids = source_group_ids.get(session_id, [])
+        if not group_ids:
+            continue
 
-    async def handler(event: events.NewMessage.Event):
-        msg = event.message
-        if not msg or not msg.chat_id:
-            return
-
-        if msg.chat_id not in source_group_ids:
-            return
-
-        if _check_and_cache(msg.id, msg.chat_id):
-            return
-
-        if keywords:
-            text = msg.text or ""
-            if not any(kw.lower() in text.lower() for kw in keywords):
+        async def handler(event: events.NewMessage.Event, _sid=session_id, _gids=group_ids):
+            msg = event.message
+            if not msg or not msg.chat_id:
                 return
 
-        await client.forward_messages(destination_id, messages=msg.id, from_peer=msg.chat_id)
+            if msg.chat_id not in _gids:
+                return
 
-    client.add_event_handler(handler, events.NewMessage)
+            if _check_and_cache(msg.id, msg.chat_id):
+                return
+
+            if keywords:
+                text = msg.text or ""
+                if not any(kw.lower() in text.lower() for kw in keywords):
+                    return
+
+            cl = multi_telethon_manager.get(_sid)
+            if cl:
+                await cl.forward_messages(destination_id, messages=msg.id, from_peer=msg.chat_id)
+
+        client.add_event_handler(handler, events.NewMessage)
+        _event_handlers[_sid] = handler
 
 
 async def stop_relay():
-    if telethon_manager.client:
-        telethon_manager.client.remove_event_handler(...)
+    for session_id, client in multi_telethon_manager.get_all():
+        handler = _event_handlers.pop(session_id, None)
+        if handler:
+            client.remove_event_handler(handler)
     _dedup_cache.clear()

@@ -2,78 +2,123 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-<!-- Connection -->
-<div class="card bg-base-200 shadow-sm mb-6">
-    <div class="card-body">
-        <h2 class="card-title">Telegram Connection</h2>
-        <div id="mtproto-status" hx-get="/api/mtproto/status"
-             hx-trigger="load, every 30s" class="mb-2">
-            <span class="loading loading-spinner loading-sm"></span>
-        </div>
-        <div id="mtproto-form" class="mt-2">
-            <form hx-post="/api/mtproto/send-code" hx-target="#mtproto-form"
-                  class="flex gap-2 items-end">
-                <fieldset class="fieldset flex-1">
-                    <label class="fieldset-label">Phone number</label>
-                    <input type="text" name="phone" class="input w-full"
-                           placeholder="+33612345678" required>
-                </fieldset>
-                <button class="btn btn-primary">Connect</button>
-            </form>
+<div class="dashboard-header">
+    <div class="dashboard-title-row">
+        <div>
+            <h1 class="dashboard-title">Overview & Controls</h1>
+            <div class="dashboard-subtitle">Manage connected MTProto sessions, select target channels, and control real-time message forwarding.</div>
         </div>
     </div>
 </div>
 
-<!-- Groups -->
-<div class="card bg-base-200 shadow-sm mb-6">
-    <div class="card-body">
-        <h2 class="card-title">Groups</h2>
-        <div class="flex gap-2 mb-2">
-            <button hx-get="/api/groups" hx-target="#groups-list"
-                    class="btn btn-outline btn-sm">Refresh</button>
-        </div>
-        <div id="groups-list" class="overflow-x-auto text-sm">Press Refresh</div>
+<!-- Connected Accounts Section -->
+<div id="accounts-section" hx-get="/api/mtproto/accounts" hx-trigger="load" hx-swap="innerHTML">
+    <div class="flex items-center justify-center py-6">
+        <span class="loading"></span>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="card bg-base-200 shadow-sm mb-6">
-    <div class="card-body">
-        <h2 class="card-title">Filters</h2>
-        <form hx-post="/api/config/filters" hx-target="#filters-msg">
-            <fieldset class="fieldset">
-                <label class="fieldset-label">Keywords (comma separated)</label>
-                <input type="text" name="keywords" class="input w-full"
-                       placeholder="bitcoin, ethereum, defi" id="keywords-input">
-            </fieldset>
-            <button class="btn btn-primary btn-sm mt-2">Save</button>
+<div id="setup-sections" style="display:none">
+    <!-- Groups & Channels Discovery -->
+    <div class="block">
+        <div class="block-header">
+            <div class="block-title-group">
+                <div class="block-title-icon">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="block-title">Source Channels & Groups</h2>
+                    <div class="block-subtitle">Select groups to scrape and define your primary destination group</div>
+                </div>
+            </div>
+            <button hx-get="/api/groups" hx-target="#groups-list" class="btn btn-sm">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh Dialogs
+            </button>
+        </div>
+        <div id="groups-list">
+            <div class="text-secondary text-sm">Connect a Telegram account to view dialogs...</div>
+        </div>
+    </div>
+
+    <!-- Keyword Filters -->
+    <div class="block">
+        <div class="block-header">
+            <div class="block-title-group">
+                <div class="block-title-icon">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="block-title">Content Filtering</h2>
+                    <div class="block-subtitle">Only relay messages containing specific comma-separated keywords (leave empty for all)</div>
+                </div>
+            </div>
+        </div>
+        <form hx-post="/api/config/filters" hx-target="#filters-msg" class="flex gap-3 items-end">
+            <div class="flex-1">
+                <input type="text" name="keywords" class="input"
+                       placeholder="e.g. bitcoin, ethereum, solana, alert" id="keywords-input">
+            </div>
+            <button class="btn btn-primary btn-sm">Save Keywords</button>
         </form>
         <div id="filters-msg" class="mt-2 text-xs"></div>
     </div>
-</div>
 
-<!-- Relay -->
-<div class="card bg-base-200 shadow-sm mb-6">
-    <div class="card-body">
-        <h2 class="card-title">Relay</h2>
-        <div id="relay-status" hx-get="/api/relay/status"
-             hx-trigger="load, every 10s" class="mb-4"></div>
-        <div class="flex gap-2">
-            <button hx-post="/api/relay/start" hx-target="#relay-status"
-                    class="btn btn-success btn-sm">Start</button>
-            <button hx-post="/api/relay/stop" hx-target="#relay-status"
-                    class="btn btn-error btn-sm">Stop</button>
+    <!-- Relay Control Engine -->
+    <div class="block">
+        <div class="block-header">
+            <div class="block-title-group">
+                <div class="block-title-icon" style="background:#ECFDF5; color:#009252;">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="block-title">Relay Execution Engine</h2>
+                    <div class="block-subtitle">Real-time MTProto forwarding service status & control</div>
+                </div>
+            </div>
+            <div id="relay-status" hx-get="/api/relay/status" hx-trigger="load, every 10s"></div>
+        </div>
+        <div class="flex gap-3 items-center">
+            <button hx-post="/api/relay/start" hx-target="#relay-status" class="btn btn-success">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Start Relay Forwarder
+            </button>
+            <button hx-post="/api/relay/stop" hx-target="#relay-status" class="btn btn-error">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+                Stop Forwarder
+            </button>
         </div>
     </div>
 </div>
 
 <script>
-    // Load saved keywords on page load
     htmx.on('htmx:afterSwap', function(evt) {
         if (evt.detail.target.id === 'relay-status') {
             fetch('/api/config/filters').then(r => r.json()).then(d => {
-                if (d.keywords) document.getElementById('keywords-input').value = d.keywords;
+                if (d.keywords && document.getElementById('keywords-input')) {
+                    document.getElementById('keywords-input').value = d.keywords;
+                }
             });
+        }
+    });
+
+    htmx.on('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'accounts-section') {
+            var html = evt.detail.target.innerHTML;
+            document.getElementById('setup-sections').style.display =
+                (html.includes('account-card') || html.includes('account-row')) ? '' : 'none';
         }
     });
 </script>

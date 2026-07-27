@@ -3,47 +3,46 @@ from telethon import TelegramClient
 from app.config import settings
 
 
-class TelethonManager:
-    _client: TelegramClient | None = None
-    _phone: str | None = None
+class MultiTelethonManager:
+    _clients: dict[int, TelegramClient] = {}
+    _phones: dict[int, str] = {}
 
-    async def create_client(self) -> TelegramClient:
-        self._client = TelegramClient(
-            session=":memory:",
-            api_id=settings.telegram_api_id,
-            api_hash=settings.telegram_api_hash,
-        )
-        return self._client
+    async def add(self, session_id: int, client: TelegramClient, phone: str):
+        self._clients[session_id] = client
+        self._phones[session_id] = phone
 
-    async def restore(self, session_str: str) -> TelegramClient:
-        self._client = TelegramClient(
-            session=session_str,
-            api_id=settings.telegram_api_id,
-            api_hash=settings.telegram_api_hash,
-        )
-        await self._client.connect()
-        return self._client
+    async def remove(self, session_id: int):
+        client = self._clients.pop(session_id, None)
+        self._phones.pop(session_id, None)
+        if client and client.is_connected():
+            await client.disconnect()
 
-    async def disconnect(self):
-        if self._client and self._client.is_connected():
-            await self._client.disconnect()
-        self._client = None
+    def get(self, session_id: int) -> TelegramClient | None:
+        return self._clients.get(session_id)
+
+    def phone(self, session_id: int) -> str | None:
+        return self._phones.get(session_id)
+
+    def get_all(self) -> list[tuple[int, TelegramClient]]:
+        return [(sid, c) for sid, c in self._clients.items()]
+
+    async def disconnect_all(self):
+        for client in self._clients.values():
+            if client and client.is_connected():
+                await client.disconnect()
+        self._clients.clear()
+        self._phones.clear()
+
+    def is_connected(self, session_id: int) -> bool:
+        client = self._clients.get(session_id)
+        return client is not None and client.is_connected()
+
+    def connected_count(self) -> int:
+        return sum(1 for c in self._clients.values() if c.is_connected())
 
     @property
-    def client(self) -> TelegramClient | None:
-        return self._client
-
-    @property
-    def is_connected(self) -> bool:
-        return self._client is not None and self._client.is_connected()
-
-    @property
-    def phone(self) -> str | None:
-        return self._phone
-
-    @phone.setter
-    def phone(self, value: str):
-        self._phone = value
+    def total_count(self) -> int:
+        return len(self._clients)
 
 
-telethon_manager = TelethonManager()
+multi_telethon_manager = MultiTelethonManager()

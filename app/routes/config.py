@@ -32,7 +32,7 @@ async def save_filters(
     else:
         db.add(RelayConfig(filter_keywords=keywords or None))
     await db.commit()
-    return HTMLResponse(f'<span class="text-success">Keywords saved</span>')
+    return HTMLResponse('<div class="alert alert-success text-xs py-2">Filter keywords saved successfully.</div>')
 
 
 @router.get("/filters")

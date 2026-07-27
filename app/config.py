@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    admin_username: str = "admin"
     admin_password: str
     telegram_api_id: int
     telegram_api_hash: str

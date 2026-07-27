@@ -25,14 +25,17 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
     r = await db.execute(select(RelayConfig).limit(1))
     config = r.scalar_one_or_none()
     if not config or not config.destination_group_id:
-        return await _status_html(db, "No destination configured")
+        return await _status_html(db, "No destination channel selected yet.")
 
     r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
     active_groups = r.scalars().all()
     if not active_groups:
-        return await _status_html(db, "No active source groups")
+        return await _status_html(db, "No active source groups selected.")
 
-    source_ids = [g.group_id for g in active_groups]
+    source_ids: dict[int, list[int]] = {}
+    for g in active_groups:
+        source_ids.setdefault(g.session_id, []).append(g.group_id)
+
     keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
 
     await start_relay(source_ids, config.destination_group_id, keywords)
@@ -70,14 +73,14 @@ async def _status_html(db: AsyncSession, error: str | None = None):
 
     parts = []
     if error:
-        parts.append(f'<div class="alert alert-error text-sm">{error}</div>')
+        parts.append(f'<div class="alert alert-error text-xs mb-2">{error}</div>')
 
     if config and config.is_running:
-        parts.append('<span class="badge badge-success">Running</span>')
+        parts.append('<span class="badge badge-success"><span class="status-dot status-dot-active"></span> RUNNING</span>')
     else:
-        parts.append('<span class="badge badge-neutral">Stopped</span>')
+        parts.append('<span class="badge badge-neutral"><span class="status-dot status-dot-inactive"></span> STOPPED</span>')
 
     if config and config.destination_title:
-        parts.append(f'<span class="text-sm">→ {config.destination_title}</span>')
+        parts.append(f'<span class="text-xs font-semibold text-secondary ml-2">Dest: {config.destination_title}</span>')
 
-    return HTMLResponse(" ".join(parts))
+    return HTMLResponse('<div class="flex items-center gap-2">' + "".join(parts) + '</div>')

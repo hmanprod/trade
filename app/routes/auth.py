@@ -11,8 +11,8 @@ serializer = URLSafeTimedSerializer(settings.session_secret, salt="admin-auth")
 
 
 @router.post("/login")
-async def login(response: Response, password: str = Form(...)):
-    if password != settings.admin_password:
+async def login(response: Response, username: str = Form(...), password: str = Form(...)):
+    if username != settings.admin_username or password != settings.admin_password:
         return RedirectResponse(url="/login?error=1", status_code=303)
     token = serializer.dumps("admin")
     response = RedirectResponse(url="/dashboard", status_code=303)
