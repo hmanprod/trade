@@ -479,6 +479,60 @@ body {
   border: 1px solid #E2E8F0;
 }
 
+.status-warn {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+/* ── System Status Rows ── */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  transition: border-color 0.15s ease;
+}
+
+.status-row:hover {
+  border-color: #CBD5E1;
+}
+
+.status-row-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: #F1F5F9;
+  color: var(--navy-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.status-row-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy-dark);
+  min-width: 130px;
+}
+
+.status-row-detail {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.status-row-value {
+  flex-shrink: 0;
+}
+
 /* ── Account Rows ── */
 .account-card {
   display: flex;

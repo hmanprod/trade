@@ -11,7 +11,7 @@ from telethon import TelegramClient
 from app.config import settings
 from app.db.engine import engine, async_session
 from app.db.models import Base, MTProtoSession
-from app.routes import auth, config, groups, mtproto, relay
+from app.routes import auth, config, groups, mtproto, relay, status
 from app.routes.auth import get_admin_user
 from app.telegram.client import multi_telethon_manager
 
@@ -79,6 +79,7 @@ app.include_router(mtproto.router)
 app.include_router(groups.router)
 app.include_router(relay.router)
 app.include_router(config.router)
+app.include_router(status.router)
 
 
 @app.get("/")
