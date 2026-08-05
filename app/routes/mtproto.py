@@ -340,7 +340,7 @@ async def reconnect_account(request: Request, session_id: int, db: AsyncSession 
         cipher = Fernet(settings.encryption_key.encode())
         decrypted = cipher.decrypt(row.string_session.encode()).decode()
         client = TelegramClient(
-            session=decrypted,
+            session=StringSession(decrypted),
             api_id=settings.telegram_api_id,
             api_hash=settings.telegram_api_hash,
         )

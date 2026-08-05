@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import select, text
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 from app.config import settings
 from app.db.engine import engine, async_session
@@ -58,7 +59,7 @@ async def lifespan(app: FastAPI):
                 cipher = Fernet(settings.encryption_key.encode())
                 decrypted = cipher.decrypt(row.string_session.encode()).decode()
                 client = TelegramClient(
-                    session=decrypted,
+                    session=StringSession(decrypted),
                     api_id=settings.telegram_api_id,
                     api_hash=settings.telegram_api_hash,
                 )
