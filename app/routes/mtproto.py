@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 from app.config import settings
 from app.db.engine import get_db, async_session
@@ -54,7 +55,7 @@ async def send_code(request: Request, phone: str = Form(...)):
     if guard:
         return guard
 
-    client = TelegramClient(":memory:", settings.telegram_api_id, settings.telegram_api_hash)
+    client = TelegramClient(StringSession(), settings.telegram_api_id, settings.telegram_api_hash)
     await client.connect()
 
     try:
