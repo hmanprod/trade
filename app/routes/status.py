@@ -52,16 +52,16 @@ async def system_status(request: Request):
     if api_ok:
         rows.append(_row(
             "TG",
-            "Telegram API",
+            "API Telegram",
             "ok",
-            f"api_id {settings.telegram_api_id} configured",
+            f"api_id {settings.telegram_api_id} configuré",
         ))
     else:
         rows.append(_row(
             "TG",
-            "Telegram API",
+            "API Telegram",
             "err",
-            "missing API credentials",
+            "identifiants API manquants",
         ))
 
     # Account(s)
@@ -74,23 +74,23 @@ async def system_status(request: Request):
     if total == 0:
         rows.append(_row(
             "AC",
-            "Account",
+            "Compte",
             "warn",
-            "no account connected",
+            "aucun compte connecté",
         ))
     elif connected > 0:
         rows.append(_row(
             "AC",
-            "Account",
+            "Compte",
             "ok",
-            f"{connected}/{total} connected",
+            f"{connected}/{total} connectés",
         ))
     else:
         rows.append(_row(
             "AC",
-            "Account",
+            "Compte",
             "err",
-            f"{total} account(s) disconnected",
+            f"{total} compte(s) déconnecté(s)",
         ))
 
     # Database
@@ -99,16 +99,16 @@ async def system_status(request: Request):
             await db.execute(text("SELECT 1"))
         rows.append(_row(
             "DB",
-            "Database",
+            "Base de données",
             "ok",
-            "connection healthy",
+            "connexion saine",
         ))
     except Exception:
         rows.append(_row(
             "DB",
-            "Database",
+            "Base de données",
             "err",
-            "connection failed",
+            "connexion échouée",
         ))
 
     return HTMLResponse(f"""
@@ -121,8 +121,8 @@ async def system_status(request: Request):
                         </svg>
                     </div>
                     <div>
-                        <h2 class="block-title">System Status</h2>
-                        <div class="block-subtitle">Live verification of core services powering the relay</div>
+                        <h2 class="block-title">État du système</h2>
+                        <div class="block-subtitle">Vérification en direct des services principaux du relais</div>
                     </div>
                 </div>
             </div>

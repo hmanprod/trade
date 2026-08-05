@@ -21,20 +21,20 @@
 
         <div class="navbar-center">
             <div id="nav-status" hx-get="/api/mtproto/status" hx-trigger="load, every 15s">
-                <span class="badge badge-neutral">Loading status...</span>
+                <span class="badge badge-neutral">Chargement du statut...</span>
             </div>
         </div>
 
         <div class="navbar-end">
             <div class="user-chip">
                 <div class="user-avatar">A</div>
-                <span>Administrator</span>
+                <span>Administrateur</span>
             </div>
             <a href="/logout" class="btn btn-nav-logout btn-sm">
                 <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                Sign out
+                Se déconnecter
             </a>
         </div>
     </header>
@@ -53,14 +53,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                 </div>
-                <h3 class="modal-title" id="confirm-title">Confirm Action</h3>
+                <h3 class="modal-title" id="confirm-title">Confirmer l'action</h3>
             </div>
             <div class="modal-body" id="confirm-body">
-                Are you sure you want to proceed with this action?
+                Êtes-vous sûr de vouloir continuer ?
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
-                <button type="button" class="btn btn-error" id="confirm-submit-btn">Confirm</button>
+                <button type="button" class="btn btn-ghost" onclick="closeConfirmModal()">Annuler</button>
+                <button type="button" class="btn btn-error" id="confirm-submit-btn">Confirmer</button>
             </div>
         </div>
     </div>

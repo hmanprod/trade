@@ -26,17 +26,17 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
     sessions = r.scalars().all()
 
     if not sessions:
-        return HTMLResponse('<div class="alert alert-warning mt-2">No Telegram accounts connected yet.</div>')
+        return HTMLResponse('<div class="alert alert-warning mt-2">Aucun compte Telegram connecté pour l\'instant.</div>')
 
     if session_id == 0:
         session_id = sessions[0].id
 
     if session_id not in {s.id for s in sessions}:
-        return HTMLResponse('<div class="alert alert-error">Invalid account selected</div>')
+        return HTMLResponse('<div class="alert alert-error">Compte sélectionné invalide</div>')
 
     client = multi_telethon_manager.get(session_id)
     if not client or not client.is_connected():
-        return HTMLResponse('<div class="alert alert-warning mt-2">Selected account is currently disconnected</div>')
+        return HTMLResponse('<div class="alert alert-warning mt-2">Le compte sélectionné est actuellement déconnecté</div>')
 
     dialogs = await client.get_dialogs()
 
@@ -59,10 +59,10 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             continue
         checked = "checked" if d.id in saved and saved[d.id].is_active else ""
         is_dest_badge = '<span class="badge badge-primary text-xs ml-2">DESTINATION</span>' if d.id == dest_id else ""
-        escaped_title = (d.title or "Untitled").replace("'", "\\'")
+        escaped_title = (d.title or "Sans titre").replace("'", "\\'")
         rows.append(f"""<tr>
             <td>
-                <div class="font-semibold">{d.title or "Untitled"}</div>
+                <div class="font-semibold">{d.title or "Sans titre"}</div>
                 {is_dest_badge}
             </td>
             <td>
@@ -72,7 +72,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                            hx-vals='{{"group_id":{d.id},"title":"{escaped_title}","active":{str(not checked).lower()},"session_id":{session_id}}}'
                            hx-trigger="change"
                            hx-target="#groups-msg" {checked} />
-                    <span class="text-xs text-secondary">Scrape Source</span>
+                    <span class="text-xs text-secondary">Source à scraper</span>
                 </label>
             </td>
             <td>
@@ -80,7 +80,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                         hx-post="/api/groups/set-destination"
                         hx-vals='{{"group_id":{d.id},"title":"{escaped_title}"}}'
                         hx-target="#dest-msg">
-                    Target Destination
+                    Définir destination
                 </button>
             </td>
         </tr>""")
@@ -88,20 +88,20 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
     if not rows:
         return HTMLResponse(f"""
             <div class="flex gap-3 items-center mb-4">
-                <label class="form-label mb-0">Active Account Session:</label>
+                <label class="form-label mb-0">Session du compte actif :</label>
                 <select class="select" hx-get="/api/groups" hx-target="#groups-list"
                         name="session_id" hx-trigger="change">
                     {"".join(session_switcher)}
                 </select>
             </div>
-            <div class="alert alert-warning">No groups or channel dialogs found for this account.</div>
+            <div class="alert alert-warning">Aucun groupe ou canal trouvé pour ce compte.</div>
         """)
 
     return HTMLResponse(f"""
         <div id="groups-msg" class="mb-2"></div>
         <div id="dest-msg" class="mb-2"></div>
         <div class="flex gap-3 items-center mb-4">
-            <label class="form-label mb-0">Account Dialog Scope:</label>
+            <label class="form-label mb-0">Portée des dialogues du compte :</label>
             <select class="select" hx-get="/api/groups" hx-target="#groups-list"
                     name="session_id" hx-trigger="change">
                 {"".join(session_switcher)}
@@ -111,9 +111,9 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Group / Channel Name</th>
-                        <th>Source Scraping</th>
-                        <th>Destination Action</th>
+                        <th>Nom du groupe / canal</th>
+                        <th>Source à scraper</th>
+                        <th>Action de destination</th>
                     </tr>
                 </thead>
                 <tbody>{"".join(rows)}</tbody>
@@ -148,8 +148,8 @@ async def toggle_source(
         db.add(SourceGroup(group_id=group_id, title=title, is_active=active, session_id=session_id))
     await db.commit()
 
-    status = "added to active sources" if active else "removed from active sources"
-    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">Source update: <strong>{title}</strong> {status}.</div>')
+    status = "ajouté aux sources actives" if active else "retiré des sources actives"
+    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">Mise à jour de la source : <strong>{title}</strong> {status}.</div>')
 
 
 @router.post("/set-destination")
@@ -171,4 +171,4 @@ async def set_destination(
     else:
         db.add(RelayConfig(destination_group_id=group_id, destination_title=title))
     await db.commit()
-    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">Destination target updated → <strong>{title}</strong></div>')
+    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">Destination définie &rarr; <strong>{title}</strong></div>')

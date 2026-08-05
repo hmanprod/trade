@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Tableau de bord{% endblock %}
 {% block content %}
 
 <div class="dashboard-header">
     <div class="dashboard-title-row">
         <div>
-            <h1 class="dashboard-title">Overview & Controls</h1>
-            <div class="dashboard-subtitle">Manage connected MTProto sessions, select target channels, and control real-time message forwarding.</div>
+            <h1 class="dashboard-title">Vue d'ensemble & Contrôles</h1>
+            <div class="dashboard-subtitle">Gérez vos sessions MTProto connectées, sélectionnez les groupes sources et contrôlez le transfert de messages en temps réel.</div>
         </div>
     </div>
 </div>
@@ -29,19 +29,19 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="block-title">Source Channels & Groups</h2>
-                    <div class="block-subtitle">Select groups to scrape and define your primary destination group</div>
+                    <h2 class="block-title">Groupes & Canaux Sources</h2>
+                    <div class="block-subtitle">Sélectionnez les groupes à scraper et définissez votre groupe de destination principal</div>
                 </div>
             </div>
             <button hx-get="/api/groups" hx-target="#groups-list" class="btn btn-sm">
                 <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
-                Refresh Dialogs
+                Actualiser les dialogues
             </button>
         </div>
         <div id="groups-list">
-            <div class="text-secondary text-sm">Connect a Telegram account to view dialogs...</div>
+            <div class="text-secondary text-sm">Connectez un compte Telegram pour voir vos dialogues...</div>
         </div>
     </div>
 
@@ -55,17 +55,17 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="block-title">Content Filtering</h2>
-                    <div class="block-subtitle">Only relay messages containing specific comma-separated keywords (leave empty for all)</div>
+                    <h2 class="block-title">Filtrage de contenu</h2>
+                    <div class="block-subtitle">Ne relayer que les messages contenant certains mots-clés séparés par des virgules (vide = tous)</div>
                 </div>
             </div>
         </div>
         <form hx-post="/api/config/filters" hx-target="#filters-msg" class="flex gap-3 items-end">
             <div class="flex-1">
                 <input type="text" name="keywords" class="input"
-                       placeholder="e.g. bitcoin, ethereum, solana, alert" id="keywords-input">
+                       placeholder="ex. bitcoin, ethereum, solana, alerte" id="keywords-input">
             </div>
-            <button class="btn btn-primary btn-sm">Save Keywords</button>
+            <button class="btn btn-primary btn-sm">Enregistrer les mots-clés</button>
         </form>
         <div id="filters-msg" class="mt-2 text-xs"></div>
     </div>
@@ -80,8 +80,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="block-title">Relay Execution Engine</h2>
-                    <div class="block-subtitle">Real-time MTProto forwarding service status & control</div>
+                    <h2 class="block-title">Moteur d'exécution du relais</h2>
+                    <div class="block-subtitle">Statut et contrôle du service de transfert MTProto en temps réel</div>
                 </div>
             </div>
             <div id="relay-status" hx-get="/api/relay/status" hx-trigger="load, every 10s"></div>
@@ -91,13 +91,13 @@
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                     <polygon points="5 3 19 12 5 21 5 3"></polygon>
                 </svg>
-                Start Relay Forwarder
+                Démarrer le relais
             </button>
             <button hx-post="/api/relay/stop" hx-target="#relay-status" class="btn btn-error">
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                     <rect x="6" y="6" width="12" height="12"></rect>
                 </svg>
-                Stop Forwarder
+                Arrêter le relais
             </button>
         </div>
     </div>
@@ -114,8 +114,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="block-title">System Status</h2>
-                    <div class="block-subtitle">Live verification of core services powering the relay</div>
+                    <h2 class="block-title">État du système</h2>
+                    <div class="block-subtitle">Vérification en direct des services principaux du relais</div>
                 </div>
             </div>
         </div>
