@@ -37,7 +37,7 @@ async def send_code(request: Request, phone: str = Form(...)):
         await client.disconnect()
         return HTMLResponse(f"""
             <div class="alert alert-error mb-3">{e}</div>
-            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="outerHTML"
+            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="innerHTML"
                   class="flex gap-3 items-end mt-3">
                 <div class="flex-1">
                     <label class="fieldset-label">Phone number</label>
@@ -52,7 +52,7 @@ async def send_code(request: Request, phone: str = Form(...)):
     _pending_clients[token] = {"client": client, "phone": phone, "phone_code_hash": sent.phone_code_hash}
 
     return HTMLResponse(f"""
-        <form hx-post="/api/mtproto/verify" hx-target="#add-account-form"
+        <form hx-post="/api/mtproto/verify" hx-target="#accounts-section" hx-swap="innerHTML"
               class="flex gap-3 items-end mt-3">
             <input type="hidden" name="token" value="{token}">
             <div class="flex-1">
@@ -99,7 +99,7 @@ async def verify(
                 token = str(id(client))
                 _pending_clients[token] = pending
                 return HTMLResponse(f"""
-                    <form hx-post="/api/mtproto/verify" hx-target="#add-account-form"
+                    <form hx-post="/api/mtproto/verify" hx-target="#accounts-section" hx-swap="innerHTML"
                           class="flex gap-3 items-end mt-3">
                         <input type="hidden" name="token" value="{token}">
                         <div class="flex-1">
@@ -115,7 +115,7 @@ async def verify(
             return HTMLResponse(f"""
                 <div class="alert alert-error mb-2">{error_msg}</div>
                 <button class="btn btn-ghost btn-sm" hx-get="/api/mtproto/accounts"
-                        hx-target="#accounts-section" hx-swap="outerHTML">
+                        hx-target="#accounts-section" hx-swap="innerHTML">
                     Back to accounts
                 </button>
             """)
@@ -139,7 +139,7 @@ async def verify(
     return HTMLResponse("""
         <div class="alert alert-success mb-3">Telegram account successfully connected.</div>
         <button class="btn btn-primary btn-sm" hx-get="/api/mtproto/accounts"
-                hx-target="#accounts-section" hx-swap="outerHTML">
+                hx-target="#accounts-section" hx-swap="innerHTML">
             Refresh Accounts List
         </button>
     """)
@@ -155,17 +155,7 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db)):
     rows = r.scalars().all()
 
     if not rows:
-        return HTMLResponse("""
-            <div class="onboard-card">
-                <h2 class="onboard-title">Connect your Telegram Account</h2>
-                <p class="onboard-desc">Link a Telegram account via official MTProto session to discover groups and start forwarding messages in real time.</p>
-                <button class="btn btn-primary"
-                        hx-get="/api/mtproto/add-form"
-                        hx-target="#accounts-section" hx-swap="outerHTML">
-                    + Connect Telegram Account
-                </button>
-            </div>
-        """)
+        return HTMLResponse("")
 
     items = []
     for row in rows:
@@ -186,7 +176,7 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db)):
             <div class="account-actions">
                 <button class="btn btn-ghost btn-xs text-error"
                         type="button"
-                        onclick="showConfirmModal('Delete Account', 'Are you sure you want to delete session {phone}?', function() {{ htmx.ajax('DELETE', '/api/mtproto/{row.id}', {{target: '#accounts-section', swap: 'outerHTML'}}); }})">
+                        onclick="showConfirmModal('Delete Account', 'Are you sure you want to delete session {phone}?', function() {{ htmx.ajax('DELETE', '/api/mtproto/{row.id}', {{target: '#accounts-section', swap: 'innerHTML'}}); }})">
                     Delete
                 </button>
             </div>
@@ -208,7 +198,7 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db)):
                 </div>
                 <button class="btn btn-primary btn-sm"
                         hx-get="/api/mtproto/add-form"
-                        hx-target="#accounts-section" hx-swap="outerHTML">
+                        hx-target="#accounts-section" hx-swap="innerHTML">
                     + Add Account
                 </button>
             </div>
@@ -220,12 +210,12 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db)):
             <div class="flex gap-2 mt-4 pt-3" style="border-top:1px solid var(--border-subtle)">
                 <button class="btn btn-xs btn-warning"
                         type="button"
-                        onclick="showConfirmModal('Disconnect All Accounts', 'Are you sure you want to disconnect all active sessions?', function() {{ htmx.ajax('POST', '/api/mtproto/disconnect-all', {{target: '#accounts-section', swap: 'outerHTML'}}); }})">
+                        onclick="showConfirmModal('Disconnect All Accounts', 'Are you sure you want to disconnect all active sessions?', function() {{ htmx.ajax('POST', '/api/mtproto/disconnect-all', {{target: '#accounts-section', swap: 'innerHTML'}}); }})">
                     Disconnect All
                 </button>
                 <button class="btn btn-xs btn-error"
                         type="button"
-                        onclick="showConfirmModal('Delete All Accounts', 'Are you sure you want to PERMANENTLY delete all sessions? This action cannot be undone.', function() {{ htmx.ajax('DELETE', '/api/mtproto/all', {{target: '#accounts-section', swap: 'outerHTML'}}); }})">
+                        onclick="showConfirmModal('Delete All Accounts', 'Are you sure you want to PERMANENTLY delete all sessions? This action cannot be undone.', function() {{ htmx.ajax('DELETE', '/api/mtproto/all', {{target: '#accounts-section', swap: 'innerHTML'}}); }})">
                     Delete All Accounts
                 </button>
             </div>
@@ -247,7 +237,7 @@ async def add_form(request: Request):
                     <div class="block-subtitle">Enter phone number to receive an official MTProto connection code</div>
                 </div>
             </div>
-            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="outerHTML"
+            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="innerHTML"
                   class="flex gap-3 items-end" style="padding-top:12px;">
                 <div style="flex:3;">
                     <label class="fieldset-label">Phone Number</label>
