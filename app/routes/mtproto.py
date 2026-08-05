@@ -249,6 +249,10 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db)):
                 </div>
             </div>
             <div class="account-actions">
+                <button class="btn btn-ghost btn-xs"
+                        type="button"
+                        onclick="htmx.ajax('POST', '/api/mtproto/{row.id}/reconnect', {{target: '#accounts-section', swap: 'innerHTML'}})"
+                        {'disabled' if connected else ''}>Reconnecter</button>
                 <button class="btn btn-ghost btn-xs text-error"
                         type="button"
                         onclick="showConfirmModal('Supprimer le compte', 'Voulez-vous vraiment supprimer la session {phone} ?', function() {{ htmx.ajax('DELETE', '/api/mtproto/{row.id}', {{target: '#accounts-section', swap: 'innerHTML'}}); }})">
@@ -317,6 +321,39 @@ async def add_form(request: Request):
             </div>
         </div>
     """)
+
+
+@router.post("/{session_id}/reconnect")
+async def reconnect_account(request: Request, session_id: int, db: AsyncSession = Depends(get_db)):
+    guard = _guard(request)
+    if guard:
+        return guard
+
+    r = await db.execute(select(MTProtoSession).where(MTProtoSession.id == session_id))
+    row = r.scalar_one_or_none()
+    if not row:
+        return HTMLResponse('<div class="alert alert-error">Compte introuvable.</div>')
+
+    try:
+        from cryptography.fernet import Fernet
+
+        cipher = Fernet(settings.encryption_key.encode())
+        decrypted = cipher.decrypt(row.string_session.encode()).decode()
+        client = TelegramClient(
+            session=decrypted,
+            api_id=settings.telegram_api_id,
+            api_hash=settings.telegram_api_hash,
+        )
+        await client.connect()
+        if not client.is_connected():
+            raise RuntimeError("connect() returned without an active connection")
+        await multi_telethon_manager.add(row.id, client, row.phone_number)
+        row.is_connected = True
+        await db.commit()
+    except Exception as e:
+        return HTMLResponse(f'<div class="alert alert-error">Reconnexion échouée : {e}</div>')
+
+    return await list_accounts(request, db)
 
 
 @router.delete("/{session_id}")

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,9 @@ from app.db.models import Base, MTProtoSession
 from app.routes import auth, config, groups, mtproto, relay, status
 from app.routes.auth import get_admin_user
 from app.telegram.client import multi_telethon_manager
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 _jinja_env = Environment(loader=FileSystemLoader("app/templates"), autoescape=True)
 
@@ -59,10 +63,11 @@ async def lifespan(app: FastAPI):
                     api_hash=settings.telegram_api_hash,
                 )
                 await client.connect()
+                if not client.is_connected():
+                    raise RuntimeError("connect() returned without an active connection")
                 await multi_telethon_manager.add(row.id, client, row.phone_number)
             except Exception:
-                row.is_connected = False
-                await db.commit()
+                logger.exception("Failed to reconnect MTProto session %s (%s)", row.id, row.phone_number)
 
     yield
 
