@@ -485,6 +485,38 @@ body {
   border: 1px solid #FDE68A;
 }
 
+/* ── Spinner / HTMX Loading Indicator ── */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.htmx-indicator {
+  display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: inline-block;
+}
+
+.code-input {
+  font-size: 18px;
+  letter-spacing: 0.4em;
+  text-align: center;
+  max-width: 220px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── System Status Rows ── */
 .status-row {
   display: flex;

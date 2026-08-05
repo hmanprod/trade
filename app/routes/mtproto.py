@@ -22,6 +22,32 @@ def _guard(request: Request):
 _pending_clients: dict[str, dict] = {}
 
 
+def _connect_step(phone: str = "", error: str = "") -> str:
+    error_html = f'<div class="alert alert-error mb-3"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>{error}</div>' if error else ''
+    return f"""
+    <div>
+        {error_html}
+        <form hx-post="/api/mtproto/send-code" hx-target="#mtproto-step" hx-swap="innerHTML"
+              hx-indicator="#phone-spinner" hx-disabled-elt="#send-code-btn">
+            <label class="fieldset-label">Phone Number</label>
+            <input type="text" name="phone" class="input mb-3"
+                   placeholder="+33612345678" value="{phone}" required autofocus>
+            <button id="send-code-btn" class="btn btn-primary" style="white-space:nowrap;">
+                <span id="phone-spinner" class="spinner htmx-indicator"></span>
+                Send Verification Code
+            </button>
+        </form>
+    </div>"""
+
+
+@router.get("/add-form-step")
+async def add_form_step(request: Request):
+    guard = _guard(request)
+    if guard:
+        return guard
+    return HTMLResponse(_connect_step())
+
+
 @router.post("/send-code")
 async def send_code(request: Request, phone: str = Form(...)):
     guard = _guard(request)
@@ -35,33 +61,37 @@ async def send_code(request: Request, phone: str = Form(...)):
         sent = await client.send_code_request(phone)
     except Exception as e:
         await client.disconnect()
-        return HTMLResponse(f"""
-            <div class="alert alert-error mb-3">{e}</div>
-            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="innerHTML"
-                  class="flex gap-3 items-end mt-3">
-                <div class="flex-1">
-                    <label class="fieldset-label">Phone number</label>
-                    <input type="text" name="phone" class="input"
-                           placeholder="+33612345678" value="{phone}" required>
-                </div>
-                <button class="btn btn-primary">Send code</button>
-            </form>
-        """)
+        return HTMLResponse(_connect_step(phone=phone, error=str(e)))
 
     token = str(id(client))
     _pending_clients[token] = {"client": client, "phone": phone, "phone_code_hash": sent.phone_code_hash}
 
     return HTMLResponse(f"""
-        <form hx-post="/api/mtproto/verify" hx-target="#accounts-section" hx-swap="innerHTML"
-              class="flex gap-3 items-end mt-3">
+    <div>
+        <div class="alert alert-success mb-3">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Code sent to <b class="font-semibold">{phone}</b>. Enter the verification code from your Telegram app below.
+        </div>
+        <form hx-post="/api/mtproto/verify" hx-target="#mtproto-step" hx-swap="innerHTML"
+              hx-indicator="#verify-spinner" hx-disabled-elt="#verify-btn">
             <input type="hidden" name="token" value="{token}">
-            <div class="flex-1">
-                <label class="form-label mb-2">Verification Code (sent to Telegram app)</label>
-                <input type="text" name="code" class="input w-full"
-                       placeholder="12345" required autofocus>
-            </div>
-            <button class="btn btn-primary">Verify & Complete</button>
+            <label class="fieldset-label">Verification Code</label>
+            <input type="text" name="code" class="input code-input mb-3"
+                   placeholder="12345" inputmode="numeric" maxlength="8" required autofocus>
+            <button id="verify-btn" class="btn btn-primary" style="white-space:nowrap;">
+                <span id="verify-spinner" class="spinner htmx-indicator"></span>
+                Verify & Connect
+            </button>
         </form>
+        <div class="mt-3">
+            <button class="btn btn-ghost btn-sm" hx-get="/api/mtproto/add-form-step"
+                hx-target="#mtproto-step" hx-swap="innerHTML">
+                &larr; Use a different phone number
+            </button>
+        </div>
+    </div>
     """)
 
 
@@ -99,24 +129,33 @@ async def verify(
                 token = str(id(client))
                 _pending_clients[token] = pending
                 return HTMLResponse(f"""
-                    <form hx-post="/api/mtproto/verify" hx-target="#accounts-section" hx-swap="innerHTML"
-                          class="flex gap-3 items-end mt-3">
+                <div>
+                    <form hx-post="/api/mtproto/verify" hx-target="#mtproto-step" hx-swap="innerHTML"
+                          hx-indicator="#password-spinner" hx-disabled-elt="#password-btn">
                         <input type="hidden" name="token" value="{token}">
-                        <div class="flex-1">
-                            <label class="form-label mb-2">2FA Password Required</label>
-                            <input type="password" name="password" class="input w-full"
-                                   placeholder="Enter Telegram 2FA password" required autofocus>
-                        </div>
-                        <button class="btn btn-primary">Submit Password</button>
+                        <label class="fieldset-label">2FA Password Required</label>
+                        <input type="password" name="password" class="input mb-3"
+                               placeholder="Enter Telegram 2FA password" required autofocus>
+                        <button id="password-btn" class="btn btn-primary" style="white-space:nowrap;">
+                            <span id="password-spinner" class="spinner htmx-indicator"></span>
+                            Submit Password
+                        </button>
                     </form>
+                    <div class="mt-3">
+                        <button class="btn btn-ghost btn-sm" hx-get="/api/mtproto/add-form-step"
+                            hx-target="#mtproto-step" hx-swap="innerHTML">
+                            &larr; Use a different phone number
+                        </button>
+                    </div>
+                </div>
                 """)
             if "PHONE_CODE_INVALID" in error_msg:
                 error_msg = "Invalid verification code provided."
             return HTMLResponse(f"""
                 <div class="alert alert-error mb-2">{error_msg}</div>
-                <button class="btn btn-ghost btn-sm" hx-get="/api/mtproto/accounts"
-                        hx-target="#accounts-section" hx-swap="innerHTML">
-                    Back to accounts
+                <button class="btn btn-ghost btn-sm" hx-get="/api/mtproto/add-form-step"
+                        hx-target="#mtproto-step" hx-swap="innerHTML">
+                    &larr; Try again
                 </button>
             """)
 
@@ -252,7 +291,7 @@ async def add_form(request: Request):
     if guard:
         return guard
 
-    return HTMLResponse("""
+    return HTMLResponse(f"""
         <div class="block" style="margin-top:16px; border:1px solid var(--primary-border); background:var(--primary-light);">
             <div class="block-header" style="border-bottom: 1px solid rgba(0,146,82,0.15)">
                 <div>
@@ -260,15 +299,9 @@ async def add_form(request: Request):
                     <div class="block-subtitle">Enter phone number to receive an official MTProto connection code</div>
                 </div>
             </div>
-            <form hx-post="/api/mtproto/send-code" hx-target="#accounts-section" hx-swap="innerHTML"
-                  class="flex gap-3 items-end" style="padding-top:12px;">
-                <div style="flex:3;">
-                    <label class="fieldset-label">Phone Number</label>
-                    <input type="text" name="phone" class="input"
-                           placeholder="+33612345678" required>
-                </div>
-                <button class="btn btn-primary" style="white-space:nowrap;">Send Verification Code</button>
-            </form>
+            <div id="mtproto-step">
+                {_connect_step()}
+            </div>
         </div>
     """)
 
