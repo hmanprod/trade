@@ -19,20 +19,24 @@ def _guard(request: Request):
 async def save_filters(
     request: Request,
     keywords: str = Form(""),
+    enabled: str = Form("off"),
     db: AsyncSession = Depends(get_db),
 ):
     guard = _guard(request)
     if guard:
         return guard
 
+    filter_enabled = enabled == "on"
+
     r = await db.execute(select(RelayConfig).limit(1))
     config = r.scalar_one_or_none()
     if config:
         config.filter_keywords = keywords or None
+        config.filter_enabled = filter_enabled
     else:
-        db.add(RelayConfig(filter_keywords=keywords or None))
+        db.add(RelayConfig(filter_keywords=keywords or None, filter_enabled=filter_enabled))
     await db.commit()
-    return HTMLResponse('<div class="alert alert-success text-xs py-2">Mots-clés de filtrage enregistrés.</div>')
+    return HTMLResponse('<div class="alert alert-success text-xs py-2">Paramètres de filtrage enregistrés.</div>')
 
 
 @router.get("/filters")
@@ -46,4 +50,7 @@ async def get_filters(
 
     r = await db.execute(select(RelayConfig).limit(1))
     config = r.scalar_one_or_none()
-    return JSONResponse({"keywords": config.filter_keywords if config else None})
+    return JSONResponse({
+        "keywords": config.filter_keywords if config else None,
+        "enabled": config.filter_enabled if config else True,
+    })

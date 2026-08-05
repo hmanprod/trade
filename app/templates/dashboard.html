@@ -62,10 +62,15 @@
         </div>
         <form hx-post="/api/config/filters" hx-target="#filters-msg" class="flex gap-3 items-end">
             <div class="flex-1">
+                <label class="fieldset-label">Mots-clés (séparés par des virgules)</label>
                 <input type="text" name="keywords" class="input"
                        placeholder="ex. bitcoin, ethereum, solana, alerte" id="keywords-input">
             </div>
-            <button class="btn btn-primary btn-sm">Enregistrer les mots-clés</button>
+            <div class="flex items-center gap-2 pb-1">
+                <input type="checkbox" name="enabled" value="on" id="filter-enabled" class="checkbox">
+                <label for="filter-enabled" class="text-sm text-secondary cursor-pointer">Activer le filtrage</label>
+            </div>
+            <button class="btn btn-primary btn-sm">Enregistrer</button>
         </form>
         <div id="filters-msg" class="mt-2 text-xs"></div>
     </div>
@@ -129,8 +134,11 @@
     htmx.on('htmx:afterSwap', function(evt) {
         if (evt.detail.target.id === 'relay-status') {
             fetch('/api/config/filters').then(r => r.json()).then(d => {
-                if (d.keywords && document.getElementById('keywords-input')) {
-                    document.getElementById('keywords-input').value = d.keywords;
+                if (document.getElementById('keywords-input')) {
+                    document.getElementById('keywords-input').value = d.keywords || '';
+                }
+                if (document.getElementById('filter-enabled')) {
+                    document.getElementById('filter-enabled').checked = !!d.enabled;
                 }
             });
         }

@@ -50,6 +50,7 @@ class RelayConfig(Base):
     destination_group_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     destination_title: Mapped[str | None] = mapped_column(String(256), nullable=True)
     filter_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)
+    filter_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     is_running: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow

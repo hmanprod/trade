@@ -36,7 +36,9 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
     for g in active_groups:
         source_ids.setdefault(g.session_id, []).append(g.group_id)
 
-    keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
+    keywords = None
+    if config.filter_enabled:
+        keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
 
     await start_relay(source_ids, config.destination_group_id, keywords)
     config.is_running = True
