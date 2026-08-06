@@ -60,7 +60,7 @@ async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int
                 await cl.forward_messages(dest_id, messages=msg.id, from_peer=msg.chat_id)
 
         client.add_event_handler(handler, events.NewMessage)
-        _event_handlers[_sid] = handler
+        _event_handlers[session_id] = handler
 
 
 async def stop_relay():
