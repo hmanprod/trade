@@ -7,13 +7,13 @@ from pydantic_settings import BaseSettings
 
 
 @lru_cache
-def _git_short_sha() -> str | None:
+def _git_build_number() -> int | None:
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "rev-list", "--count", "HEAD"],
             capture_output=True, text=True, check=True, timeout=2,
         )
-        return out.stdout.strip() or None
+        return int(out.stdout.strip()) or None
     except Exception:
         return None
 
@@ -25,8 +25,8 @@ def _default_version() -> str:
         base = _pkg_version("trade")
     except Exception:
         pass
-    sha = _git_short_sha()
-    return f"{base}+{sha}" if sha else base
+    build = _git_build_number()
+    return f"{base}+build {build}" if build else base
 
 
 class Settings(BaseSettings):
