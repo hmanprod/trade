@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_db
 from app.db.models import RelayConfig, SourceGroup
 from app.routes.auth import get_admin_user
-from app.telegram.relay import start_relay, stop_relay
+from app.telegram.relay import start_relay, stop_relay, get_run_debug
 
 router = APIRouter(prefix="/api/relay")
 
@@ -87,4 +87,46 @@ async def _status_html(db: AsyncSession, error: str | None = None):
     else:
         parts.append('<span class="badge badge-neutral"><span class="status-dot status-dot-inactive"></span> ARRÊTÉ</span>')
 
-    return HTMLResponse('<div class="flex items-center gap-2">' + "".join(parts) + '</div>')
+    head = '<div class="flex items-center gap-2">' + "".join(parts) + '</div>'
+    head += _debug_html()
+    return HTMLResponse(head)
+
+
+def _stat_card(label: str, value: int, color: str = "#334155") -> str:
+    return f'<div class="flex-1 text-center" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 8px;"><div style="font-size:20px;font-weight:700;color:{color};">{value}</div><div class="text-xs text-secondary mt-1">{label}</div></div>'
+
+
+def _debug_html() -> str:
+    debug = get_run_debug()
+    stats = debug["stats"]
+    lines = debug["lines"]
+    started = debug["started_at"]
+
+    stat_cards = "".join([
+        _stat_card("Reçus", stats["received"], "#0F172A"),
+        _stat_card("Relayés", stats["forwarded"], "#009252"),
+        _stat_card("Filtrés", stats["filtered"], "#F59E0B"),
+        _stat_card("Skippés", stats["skip"], "#94A3B8"),
+        _stat_card("Erreurs", stats["errors"], "#EF4444"),
+    ])
+
+    if not lines:
+        log_html = '<div class="text-xs text-muted py-2">Aucune activité de relais pour l\'instant.</div>'
+    else:
+        log_html = '<div class="text-xs font-mono" style="line-height:1.6;">' + "<br>".join(f'<div>{_esc_line(l)}</div>' for l in lines) + '</div>'
+
+    started_html = f"<span class='text-xs text-muted'>Début : {started.replace('T', ' ')[:19]}</span>" if started else ""
+    return f"""
+    <div class="mt-4" style="border-top:1px solid var(--border-subtle);padding-top:16px;">
+        <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-semibold" style="color:var(--navy-dark);">Débogage de la dernière exécution</div>
+            {started_html}
+        </div>
+        <div class="flex gap-2 mb-3">{stat_cards}</div>
+        <div style="background:#0F172A;color:#A5B4CC;border-radius:var(--radius-md);padding:10px 12px;max-height:220px;overflow:auto;">{log_html}</div>
+    </div>
+    """
+
+
+def _esc_line(line: str) -> str:
+    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
