@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -130,10 +130,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             <td>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox"
-                           hx-post="/api/groups/toggle"
-                           hx-vals='{{"group_id":{d.id},"title":"{escaped_title}","active":{str(not checked).lower()},"session_id":{sid}}}'
-                           hx-trigger="change"
-                           hx-target="#groups-msg" {checked} />
+                           name="source_{sid}_{d.id}" {checked} />
                     <span class="text-xs text-secondary">Scraper</span>
                 </label>
             </td>
@@ -143,12 +140,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                         <span class="text-xs text-secondary">{dest_label}</span>
                         {dest_badge}
                     </div>
-                    <select class="select select-sm"
-                            hx-post="/api/groups/set-destination"
-                            hx-vals='{{"source_group_id":{d.id},"session_id":{sid},"title":"{escaped_title}"}}'
-                            hx-target="#dest-msg"
-                            hx-trigger="change"
-                            name="dest_group_id">
+                    <select class="select select-sm" name="dest_{sid}_{d.id}">
                         {dest_options_html(sid, sg.destination_group_id if sg else None)}
                     </select>
                 </div>
@@ -158,7 +150,6 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
     if total_rows == 0:
         return HTMLResponse(f"""
             <div id="groups-msg" class="mb-2"></div>
-            <div id="dest-msg" class="mb-2"></div>
             <div class="flex gap-3 items-center mb-4">
                 <label class="form-label mb-0">Compte :</label>
                 <select class="select" hx-get="/api/groups" hx-target="#groups-list"
@@ -171,7 +162,6 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
 
     return HTMLResponse(f"""
         <div id="groups-msg" class="mb-2"></div>
-        <div id="dest-msg" class="mb-2"></div>
         <div class="flex flex-wrap gap-3 items-center mb-4">
             <label class="form-label mb-0">Compte :</label>
             <select class="select" hx-get="/api/groups" hx-target="#groups-list"
@@ -179,85 +169,91 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                 {"".join(filter_switcher)}
             </select>
         </div>
-        <div class="table-wrapper" id="gdest-target">
-            <table class="table" id="source-group-table">
-                <thead>
-                    <tr>
-                        <th>Groupe / Canal</th>
-                        <th>Compte</th>
-                        <th>Source à scraper</th>
-                        <th>Destination</th>
-                    </tr>
-                </thead>
-                <tbody>{"".join(rows)}</tbody>
-            </table>
-        </div>
+        <form id="groups-form"
+              hx-post="/api/groups/apply"
+              hx-target="#groups-msg"
+              hx-swap="innerHTML">
+            <input type="hidden" name="session_id" value="{session_id}">
+            <div class="flex items-center justify-between mb-3">
+                <div></div>
+                <button type="submit" class="btn btn-primary btn-sm"
+                        hx-disabled-elt="this" hx-indicator="#apply-groups-indicator">
+                    <span id="apply-groups-indicator" class="htmx-indicator spinner"></span>
+                    Appliquer les modifications
+                </button>
+            </div>
+            <div class="table-wrapper" id="gdest-target">
+                <table class="table" id="source-group-table">
+                    <thead>
+                        <tr>
+                            <th>Groupe / Canal</th>
+                            <th>Compte</th>
+                            <th>Source à scraper</th>
+                            <th>Destination</th>
+                        </tr>
+                    </thead>
+                    <tbody>{"".join(rows)}</tbody>
+                </table>
+            </div>
+        </form>
     """)
 
 
-@router.post("/toggle")
-async def toggle_source(
+@router.post("/apply")
+async def apply_groups(
     request: Request,
-    group_id: int = Form(...),
-    title: str = Form(...),
-    active: bool = Form(...),
-    session_id: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     guard = _guard(request)
     if guard:
         return guard
 
-    result = await db.execute(
-        select(SourceGroup).where(
-            SourceGroup.group_id == group_id, SourceGroup.session_id == session_id
-        )
-    )
-    existing = result.scalar_one_or_none()
-    if existing:
-        existing.is_active = active
-        existing.title = title
-    else:
-        db.add(SourceGroup(group_id=group_id, title=title, is_active=active, session_id=session_id))
+    form = await request.form()
+
+    all_dialogs = await _all_dialogs_by_session()
+    admin_dialogs = await _admin_dialogs_by_session()
+
+    active_count = 0
+    warnings = []
+
+    for sid in sorted(all_dialogs):
+        if not multi_telethon_manager.is_connected(sid):
+            continue
+        admin_ids = {dd.id for dd in admin_dialogs.get(sid, [])}
+        for d in all_dialogs[sid]:
+            group_id = d.id
+            title = d.title or "Sans titre"
+
+            r = await db.execute(
+                select(SourceGroup).where(
+                    SourceGroup.group_id == group_id, SourceGroup.session_id == sid
+                )
+            )
+            sg = r.scalar_one_or_none()
+            if not sg:
+                sg = SourceGroup(group_id=group_id, title=title, is_active=False, session_id=sid)
+                db.add(sg)
+
+            is_active = form.get(f"source_{sid}_{group_id}") is not None
+            sg.is_active = is_active
+            sg.title = title
+            if is_active:
+                active_count += 1
+
+            dest_val = form.get(f"dest_{sid}_{group_id}")
+            if dest_val is not None:
+                dest_group_id = int(dest_val)
+                if dest_group_id and dest_group_id not in admin_ids:
+                    warnings.append(f"Destination invalide ignorée pour « {title} »")
+                else:
+                    sg.destination_group_id = dest_group_id or None
+                    sg.destination_session_id = sid if dest_group_id else None
+
     await db.commit()
 
-    status = "ajouté aux sources actives" if active else "retiré des sources actives"
-    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">Mise à jour de la source : <strong>{title}</strong> {status}.</div>')
-
-
-@router.post("/set-destination")
-async def set_destination(
-    request: Request,
-    source_group_id: int = Form(...),
-    session_id: int = Form(...),
-    title: str = Form(...),
-    dest_group_id: int = Form(0),
-    db: AsyncSession = Depends(get_db),
-):
-    guard = _guard(request)
-    if guard:
-        return guard
-
-    result = await db.execute(
-        select(SourceGroup).where(
-            SourceGroup.group_id == source_group_id, SourceGroup.session_id == session_id
-        )
-    )
-    sg = result.scalar_one_or_none()
-    if not sg:
-        sg = SourceGroup(group_id=source_group_id, title=title, is_active=True, session_id=session_id)
-        db.add(sg)
-
-    if dest_group_id:
-        admin_groups = (await _admin_dialogs_by_session()).get(session_id, [])
-        if not any(d.id == dest_group_id for d in admin_groups):
-            return HTMLResponse('<div class="alert alert-error text-xs py-2">Groupe de destination invalide : le compte doit en être créateur ou admin.</div>')
-        sg.destination_group_id = dest_group_id
-        sg.destination_session_id = session_id
-        msg = f'Destination définie pour <strong>{title}</strong>.'
+    if warnings:
+        body = ' '.join(warnings)
+        html = f'<div class="alert alert-warning text-xs py-2">{body}</div>'
     else:
-        sg.destination_group_id = None
-        sg.destination_session_id = None
-        msg = f'Destination retirée pour <strong>{title}</strong> (À définir).'
-    await db.commit()
-    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">{msg}</div>')
+        html = f'<div class="alert alert-success text-xs py-2">Modifications appliquées — <strong>{active_count}</strong> source(s) active(s).</div>'
+    return HTMLResponse(html)
