@@ -1,6 +1,15 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -25,7 +34,9 @@ class MTProtoSession(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
-    source_groups: Mapped[list["SourceGroup"]] = relationship(back_populates="session")
+    source_groups: Mapped[list["SourceGroup"]] = relationship(
+        back_populates="session", foreign_keys="SourceGroup.session_id"
+    )
 
 
 class SourceGroup(Base):
@@ -42,7 +53,13 @@ class SourceGroup(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
-    session: Mapped["MTProtoSession"] = relationship(back_populates="source_groups")
+    session: Mapped["MTProtoSession"] = relationship(
+        back_populates="source_groups", foreign_keys="SourceGroup.session_id"
+    )
+
+    destination_account: Mapped["MTProtoSession"] = relationship(
+        foreign_keys="SourceGroup.destination_session_id"
+    )
 
     __table_args__ = (UniqueConstraint("group_id", "session_id", name="uq_group_session"),)
 

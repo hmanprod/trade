@@ -45,8 +45,9 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
         keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
 
     await start_relay(source_ids, dest_map, keywords)
-    config.is_running = True
-    await db.commit()
+    if config:
+        config.is_running = True
+        await db.commit()
     return await _status_html(db, f"{undestined} source(s) sans destination ignorée(s)." if undestined else None)
 
 
