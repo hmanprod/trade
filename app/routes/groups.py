@@ -65,69 +65,73 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
     if not sessions:
         return HTMLResponse('<div class="alert alert-warning mt-2">Aucun compte Telegram connecté pour l\'instant.</div>')
 
-    if session_id == 0:
-        session_id = sessions[0].id
-
-    if session_id not in {s.id for s in sessions}:
+    if session_id and session_id not in {s.id for s in sessions}:
         return HTMLResponse('<div class="alert alert-error">Compte sélectionné invalide</div>')
 
-    client = multi_telethon_manager.get(session_id)
-    if not client or not client.is_connected():
-        return HTMLResponse('<div class="alert alert-warning mt-2">Le compte sélectionné est actuellement déconnecté</div>')
-
-    dialogs = []
-    async for d in client.iter_dialogs():
-        if d.is_group or d.is_channel:
-            dialogs.append(d)
-
-    r = await db.execute(select(SourceGroup).where(SourceGroup.session_id == session_id))
-    saved = {sg.group_id: sg for sg in r.scalars().all()}
-
-    session_switcher = []
-    for s in sessions:
-        label = s.label or s.phone_number
-        selected = "selected" if s.id == session_id else ""
-        session_switcher.append(f'<option value="{s.id}" {selected}>{label}</option>')
-
-    # Options de destination : groupes du compte courant dont il est créateur/admin.
     session_labels = {s.id: (s.label or s.phone_number) for s in sessions}
-    dest_groups = (await _admin_dialogs_by_session()).get(session_id, [])
 
-    def dest_options_html(selected_group_id: int | None = None) -> str:
+    all_dialogs = await _all_dialogs_by_session()
+    admin_dialogs = await _admin_dialogs_by_session()
+
+    if session_id:
+        all_dialogs = {session_id: all_dialogs.get(session_id, [])}
+
+    r = await db.execute(select(SourceGroup))
+    saved_by_session: dict[int, dict[int, SourceGroup]] = {}
+    for sg in r.scalars().all():
+        saved_by_session.setdefault(sg.session_id, {})[sg.group_id] = sg
+
+    # Filtre par compte (option "Tous les comptes" par défaut)
+    filter_switcher = ['<option value="0">Tous les comptes</option>']
+    for s in sessions:
+        label = session_labels[s.id]
+        selected = "selected" if s.id == session_id else ""
+        filter_switcher.append(f'<option value="{s.id}" {selected}>{label}</option>')
+
+    def dest_options_html(src_session_id: int, selected_group_id: int | None = None) -> str:
         opts = ['<option value="0">— À définir —</option>']
-        label = session_labels.get(session_id, f"Compte {session_id}")
-        for d in dest_groups:
+        label = session_labels.get(src_session_id, f"Compte {src_session_id}")
+        for d in admin_dialogs.get(src_session_id, []):
             title = d.title or "Sans titre"
             sel = " selected" if d.id == selected_group_id else ""
             opts.append(f'<option value="{d.id}"{sel}>@ {_esc(label)} — {_esc(title)}</option>')
-        if not dest_groups:
+        if not admin_dialogs.get(src_session_id):
             opts.append('<option value="0" disabled>⚠ Aucun groupe où vous êtes admin</option>')
         return "".join(opts)
 
     rows = []
-    for d in dialogs:
-        checked = "checked" if d.id in saved and saved[d.id].is_active else ""
-        sg = saved.get(d.id)
-        dest_label = ""
-        dest_badge = ""
-        if sg and sg.destination_group_id is not None:
-            dest_badge = '<span class="badge badge-success text-xs">Destination</span>'
-            for dd in dest_groups:
-                if dd.id == sg.destination_group_id:
-                    dest_label = f"→ {_esc(dd.title or 'Sans titre')} (@ {_esc(session_labels.get(session_id, '?'))})"
-        if not dest_label:
-            dest_label = "À définir"
-        select_chk = f'<input type="checkbox" class="checkbox checkbox-sm" name="source_group_ids" value="{sg.id}" hx-trigger="none"/>' if sg else ""
-        escaped_title = _esc(d.title or "Sans titre")
-        rows.append(f"""<tr>
+    total_rows = 0
+    for sid in sorted(all_dialogs):
+        if not multi_telethon_manager.is_connected(sid):
+            continue
+        account_label = session_labels.get(sid, f"Compte {sid}")
+        saved = saved_by_session.get(sid, {})
+        for d in all_dialogs[sid]:
+            total_rows += 1
+            checked = "checked" if d.id in saved and saved[d.id].is_active else ""
+            sg = saved.get(d.id)
+            dest_label = ""
+            dest_badge = ""
+            if sg and sg.destination_group_id is not None:
+                dest_badge = '<span class="badge badge-success text-xs">Destination</span>'
+                for dd in admin_dialogs.get(sid, []):
+                    if dd.id == sg.destination_group_id:
+                        dest_label = f"→ {_esc(dd.title or 'Sans titre')}"
+            if not dest_label:
+                dest_label = "À définir"
+            escaped_title = _esc(d.title or "Sans titre")
+            rows.append(f"""<tr>
             <td>
                 <div class="font-semibold">{d.title or "Sans titre"}</div>
+            </td>
+            <td>
+                <span class="badge badge-neutral">{_esc(account_label)}</span>
             </td>
             <td>
                 <label class="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" class="checkbox"
                            hx-post="/api/groups/toggle"
-                           hx-vals='{{"group_id":{d.id},"title":"{escaped_title}","active":{str(not checked).lower()},"session_id":{session_id}}}'
+                           hx-vals='{{"group_id":{d.id},"title":"{escaped_title}","active":{str(not checked).lower()},"session_id":{sid}}}'
                            hx-trigger="change"
                            hx-target="#groups-msg" {checked} />
                     <span class="text-xs text-secondary">Scraper</span>
@@ -141,20 +145,17 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                     </div>
                     <select class="select select-sm"
                             hx-post="/api/groups/set-destination"
-                            hx-vals='{{"source_group_id":{d.id},"session_id":{session_id},"title":"{escaped_title}"}}'
+                            hx-vals='{{"source_group_id":{d.id},"session_id":{sid},"title":"{escaped_title}"}}'
                             hx-target="#dest-msg"
                             hx-trigger="change"
                             name="dest_group_id">
-                        {dest_options_html(sg.destination_group_id if sg else None)}
+                        {dest_options_html(sid, sg.destination_group_id if sg else None)}
                     </select>
                 </div>
             </td>
-            <td class="text-center">
-                {select_chk}
-            </td>
         </tr>""")
 
-    if not rows:
+    if total_rows == 0:
         return HTMLResponse(f"""
             <div id="groups-msg" class="mb-2"></div>
             <div id="dest-msg" class="mb-2"></div>
@@ -162,10 +163,10 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                 <label class="form-label mb-0">Compte :</label>
                 <select class="select" hx-get="/api/groups" hx-target="#groups-list"
                         name="session_id" hx-trigger="change">
-                    {"".join(session_switcher)}
+                    {"".join(filter_switcher)}
                 </select>
             </div>
-            <div class="alert alert-warning">Aucun groupe ou canal trouvé pour ce compte.</div>
+            <div class="alert alert-warning">Aucun groupe ou canal trouvé.</div>
         """)
 
     return HTMLResponse(f"""
@@ -175,33 +176,20 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             <label class="form-label mb-0">Compte :</label>
             <select class="select" hx-get="/api/groups" hx-target="#groups-list"
                     name="session_id" hx-trigger="change">
-                {"".join(session_switcher)}
+                {"".join(filter_switcher)}
             </select>
         </div>
-        <form hx-post="/api/groups/batch-destination" hx-target="#dest-msg"
-              hx-include="#gdest-body input[name='source_group_ids']"
-              class="flex flex-wrap gap-3 items-end mb-4 p-3" style="background:var(--primary-light); border:1px solid var(--primary-border); border-radius:var(--radius-md);">
-            <input type="hidden" name="session_id" value="{session_id}">
-            <div>
-                <label class="fieldset-label">Appliquer une destination</label>
-                <select class="select" name="dest_group_id">
-                    {dest_options_html()}
-                </select>
-            </div>
-            <button class="btn btn-primary btn-sm" type="submit">Appliquer aux sélectionnés</button>
-            <button class="btn btn-primary btn-sm" type="submit" name="apply_to_all" value="on">Appliquer à tous</button>
-        </form>
         <div class="table-wrapper" id="gdest-target">
             <table class="table" id="source-group-table">
                 <thead>
                     <tr>
                         <th>Groupe / Canal</th>
+                        <th>Compte</th>
                         <th>Source à scraper</th>
                         <th>Destination</th>
-                        <th class="text-center">Sélection</th>
                     </tr>
                 </thead>
-                <tbody id="gdest-body">{"".join(rows)}</tbody>
+                <tbody>{"".join(rows)}</tbody>
             </table>
         </div>
     """)
@@ -271,46 +259,5 @@ async def set_destination(
         sg.destination_group_id = None
         sg.destination_session_id = None
         msg = f'Destination retirée pour <strong>{title}</strong> (À définir).'
-    await db.commit()
-    return HTMLResponse(f'<div class="alert alert-success text-xs py-2">{msg}</div>')
-
-
-@router.post("/batch-destination")
-async def batch_destination(
-    request: Request,
-    dest_group_id: int = Form(0),
-    source_group_ids: list[int] = Form([]),
-    apply_to_all: str = Form(""),
-    session_id: int = Form(0),
-    db: AsyncSession = Depends(get_db),
-):
-    guard = _guard(request)
-    if guard:
-        return guard
-
-    r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
-    groups = r.scalars().all()
-
-    if dest_group_id:
-        admin_groups = (await _admin_dialogs_by_session()).get(session_id, [])
-        if not any(d.id == dest_group_id for d in admin_groups):
-            return HTMLResponse('<div class="alert alert-error text-xs py-2">Groupe de destination invalide : le compte doit en être créateur ou admin.</div>')
-
-    # Seules les sources du compte courant sont visées (la destination doit lui appartenir).
-    if apply_to_all == "on":
-        targets = [g for g in groups if g.session_id == session_id]
-    else:
-        targets = [g for g in groups if g.id in source_group_ids and g.session_id == session_id]
-
-    if dest_group_id:
-        for g in targets:
-            g.destination_group_id = dest_group_id
-            g.destination_session_id = session_id
-        msg = f"Destination appliquée à {len(targets)} source(s)."
-    else:
-        for g in targets:
-            g.destination_group_id = None
-            g.destination_session_id = None
-        msg = f"Destination retirée sur {len(targets)} source(s)."
     await db.commit()
     return HTMLResponse(f'<div class="alert alert-success text-xs py-2">{msg}</div>')
