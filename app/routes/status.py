@@ -4,7 +4,7 @@ from sqlalchemy import select, text
 
 from app.config import settings
 from app.db.engine import async_session
-from app.db.models import MTProtoSession
+from app.db.models import MTProtoSession, SourceGroup
 from app.routes.auth import get_admin_user
 from app.telegram.client import multi_telethon_manager
 
@@ -92,6 +92,24 @@ async def system_status(request: Request):
             "err",
             f"{total} compte(s) déconnecté(s)",
         ))
+
+    # Sources & Destinations
+    try:
+        async with async_session() as db:
+            r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
+            sources = r.scalars().all()
+        active = len(sources)
+        undestined = sum(1 for s in sources if s.destination_group_id is None)
+        distinct_dests = {s.destination_group_id for s in sources if s.destination_group_id is not None}
+        detail = f"{active} source(s) active(s) · {len(distinct_dests)} destination(s) distincte(s)"
+        if undestined:
+            detail += f" · {undestined} sans destination"
+        if active:
+            rows.append(_row("SRC", "Sources & Destinations", "ok", detail))
+        else:
+            rows.append(_row("SRC", "Sources & Destinations", "warn", "aucune source active"))
+    except Exception as e:
+        rows.append(_row("SRC", "Sources & Destinations", "err", str(e)))
 
     # Database
     try:

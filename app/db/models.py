@@ -36,6 +36,10 @@ class SourceGroup(Base):
     title: Mapped[str] = mapped_column(String(256))
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     session_id: Mapped[int] = mapped_column(Integer, ForeignKey("mtproto_session.id"))
+    destination_group_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    destination_session_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("mtproto_session.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     session: Mapped["MTProtoSession"] = relationship(back_populates="source_groups")

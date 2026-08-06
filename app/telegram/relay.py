@@ -1,6 +1,10 @@
+import logging
+
 from telethon import events
 
 from app.telegram.client import multi_telethon_manager
+
+logger = logging.getLogger(__name__)
 
 _dedup_cache: set[int] = set()
 DEDUP_MAX_SIZE = 10000
@@ -21,13 +25,15 @@ def _check_and_cache(msg_id: int, chat_id: int) -> bool:
     return False
 
 
-async def start_relay(source_group_ids: dict[int, list[int]], destination_id: int, keywords: list[str] | None = None):
+async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int, dict[int, int]], keywords: list[str] | None = None):
     for session_id, client in multi_telethon_manager.get_all():
         group_ids = source_group_ids.get(session_id, [])
         if not group_ids:
             continue
 
-        async def handler(event: events.NewMessage.Event, _sid=session_id, _gids=group_ids):
+        session_dests = dest_map.get(session_id, {})
+
+        async def handler(event: events.NewMessage.Event, _sid=session_id, _gids=group_ids, _dests=session_dests):
             msg = event.message
             if not msg or not msg.chat_id:
                 return
@@ -43,9 +49,15 @@ async def start_relay(source_group_ids: dict[int, list[int]], destination_id: in
                 if not any(kw.lower() in text.lower() for kw in keywords):
                     return
 
+            dest_id = _dests.get(msg.chat_id)
+            if dest_id is None:
+                logger.info("Skipping msg %s from chat %s: no destination set", msg.id, msg.chat_id)
+                return
+
             cl = multi_telethon_manager.get(_sid)
             if cl:
-                await cl.forward_messages(destination_id, messages=msg.id, from_peer=msg.chat_id)
+                logger.info("Forwarding msg %s from chat %s to %s", msg.id, msg.chat_id, dest_id)
+                await cl.forward_messages(dest_id, messages=msg.id, from_peer=msg.chat_id)
 
         client.add_event_handler(handler, events.NewMessage)
         _event_handlers[_sid] = handler

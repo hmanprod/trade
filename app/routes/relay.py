@@ -24,8 +24,6 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
 
     r = await db.execute(select(RelayConfig).limit(1))
     config = r.scalar_one_or_none()
-    if not config or not config.destination_group_id:
-        return await _status_html(db, "Aucun canal de destination sélectionné.")
 
     r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
     active_groups = r.scalars().all()
@@ -33,17 +31,23 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
         return await _status_html(db, "Aucun groupe source actif sélectionné.")
 
     source_ids: dict[int, list[int]] = {}
+    dest_map: dict[int, dict[int, int]] = {}
+    undestined = 0
     for g in active_groups:
         source_ids.setdefault(g.session_id, []).append(g.group_id)
+        if g.destination_group_id is not None:
+            dest_map.setdefault(g.session_id, {})[g.group_id] = g.destination_group_id
+        else:
+            undestined += 1
 
     keywords = None
-    if config.filter_enabled:
+    if config and config.filter_enabled:
         keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
 
-    await start_relay(source_ids, config.destination_group_id, keywords)
+    await start_relay(source_ids, dest_map, keywords)
     config.is_running = True
     await db.commit()
-    return await _status_html(db)
+    return await _status_html(db, f"{undestined} source(s) sans destination ignorée(s)." if undestined else None)
 
 
 @router.post("/stop")
@@ -81,8 +85,5 @@ async def _status_html(db: AsyncSession, error: str | None = None):
         parts.append('<span class="badge badge-success"><span class="status-dot status-dot-active"></span> EN COURS</span>')
     else:
         parts.append('<span class="badge badge-neutral"><span class="status-dot status-dot-inactive"></span> ARRÊTÉ</span>')
-
-    if config and config.destination_title:
-        parts.append(f'<span class="text-xs font-semibold text-secondary ml-2">Dest : {config.destination_title}</span>')
 
     return HTMLResponse('<div class="flex items-center gap-2">' + "".join(parts) + '</div>')
