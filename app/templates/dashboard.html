@@ -40,8 +40,8 @@
                 Actualiser les dialogues
             </button>
         </div>
-        <div id="groups-list">
-            <div class="text-secondary text-sm">Connectez un compte Telegram pour voir vos dialogues...</div>
+        <div id="groups-list" hx-get="/api/groups" hx-trigger="load" hx-swap="innerHTML">
+            <div class="text-secondary text-sm">Chargement des groupes...</div>
         </div>
     </div>
 
