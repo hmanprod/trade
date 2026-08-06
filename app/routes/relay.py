@@ -105,6 +105,7 @@ def _debug_html() -> str:
     stat_cards = "".join([
         _stat_card("Reçus", stats["received"], "#0F172A"),
         _stat_card("Relayés", stats["forwarded"], "#009252"),
+        _stat_card("Hors source", stats["outside"], "#64748B"),
         _stat_card("Filtrés", stats["filtered"], "#F59E0B"),
         _stat_card("Skippés", stats["skip"], "#94A3B8"),
         _stat_card("Erreurs", stats["errors"], "#EF4444"),

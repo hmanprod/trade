@@ -15,7 +15,7 @@ _event_handlers: dict[int, object] = {}
 # Debug d'exécution en mémoire (dernière exécution / session en cours)
 LOG_MAX_LINES = 200
 _run_log: deque[str] = deque(maxlen=LOG_MAX_LINES)
-_run_stats: dict[str, int] = {"received": 0, "forwarded": 0, "filtered": 0, "skip": 0, "errors": 0}
+_run_stats: dict[str, int] = {"received": 0, "outside": 0, "forwarded": 0, "filtered": 0, "skip": 0, "errors": 0}
 _run_started_at: datetime | None = None
 
 
@@ -26,7 +26,7 @@ def _now() -> str:
 def reset_run():
     global _run_started_at
     _run_log.clear()
-    _run_stats.update({"received": 0, "forwarded": 0, "filtered": 0, "skip": 0, "errors": 0})
+    _run_stats.update({"received": 0, "outside": 0, "forwarded": 0, "filtered": 0, "skip": 0, "errors": 0})
     _run_started_at = datetime.now(timezone.utc)
 
 
@@ -69,12 +69,13 @@ async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int
                 return
 
             if msg.chat_id not in _gids:
+                _run_stats["outside"] += 1
                 return
 
             if _check_and_cache(msg.id, msg.chat_id):
                 return
 
-            _run_log.append(f"{_now()} — Reçu de chat {msg.chat_id} (id {msg.id})")
+            _run_log.append(f"{_now()} — Reçu de source {msg.chat_id} (id {msg.id})")
             if keywords:
                 text = msg.text or ""
                 if not any(kw.lower() in text.lower() for kw in keywords):
