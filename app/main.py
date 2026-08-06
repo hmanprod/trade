@@ -25,7 +25,7 @@ _jinja_env = Environment(loader=FileSystemLoader("app/templates"), autoescape=Tr
 
 def render(name: str, **context) -> HTMLResponse:
     tmpl = _jinja_env.get_template(name)
-    return HTMLResponse(tmpl.render(**context))
+    return HTMLResponse(tmpl.render(**context, app_version=settings.version))
 
 
 @asynccontextmanager

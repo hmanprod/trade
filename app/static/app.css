@@ -88,6 +88,24 @@ body {
   color: #FFFFFF;
 }
 
+.brand-text {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+
+.brand-version {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  color: #A7F3D0;
+  line-height: 1;
+}
+
 
 
 .navbar-center {

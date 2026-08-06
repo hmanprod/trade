@@ -17,13 +17,9 @@
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             </div>
+            <span class="brand-text">Telegram Relay</span>
+            <span class="brand-version">v{{ app_version }}</span>
         </a>
-
-        <div class="navbar-center">
-            <div id="nav-status" hx-get="/api/mtproto/status" hx-trigger="load, every 15s">
-                <span class="badge badge-neutral">Chargement du statut...</span>
-            </div>
-        </div>
 
         <div class="navbar-end">
             <div class="user-chip">
