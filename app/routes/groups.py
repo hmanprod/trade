@@ -20,6 +20,16 @@ def _esc(value: str) -> str:
     return value.replace("'", "\\'")
 
 
+def _is_admin_or_creator(dialog) -> bool:
+    """True si le compte est créateur ou admin du groupe/canal."""
+    ent = getattr(dialog, "entity", None)
+    if ent is None:
+        return False
+    if getattr(ent, "creator", False):
+        return True
+    return getattr(ent, "admin_rights", None) is not None
+
+
 async def _all_dialogs_by_session() -> dict[int, list]:
     """Récupère TOUS les dialogues (groupes/canaux) de chaque compte connecté."""
     out: dict[int, list] = {}
@@ -32,6 +42,15 @@ async def _all_dialogs_by_session() -> dict[int, list]:
                 dialogs.append(d)
         out[sid] = dialogs
     return out
+
+
+async def _admin_dialogs_by_session() -> dict[int, list]:
+    """Dialogues (groupes/canaux) dont le compte est créateur ou admin."""
+    all_dialogs = await _all_dialogs_by_session()
+    return {
+        sid: [d for d in dialogs if _is_admin_or_creator(d)]
+        for sid, dialogs in all_dialogs.items()
+    }
 
 
 @router.get("")
@@ -70,18 +89,19 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
         selected = "selected" if s.id == session_id else ""
         session_switcher.append(f'<option value="{s.id}" {selected}>{label}</option>')
 
-    # Options de destination : compte -> groupe, réutilisées pour le picker par source et le batch
-    all_dialogs = await _all_dialogs_by_session()
+    # Options de destination : groupes du compte courant dont il est créateur/admin.
     session_labels = {s.id: (s.label or s.phone_number) for s in sessions}
+    dest_groups = (await _admin_dialogs_by_session()).get(session_id, [])
 
     def dest_options_html(selected_group_id: int | None = None) -> str:
         opts = ['<option value="0">— À définir —</option>']
-        for sid in sorted(all_dialogs):
-            label = session_labels.get(sid, f"Compte {sid}")
-            for d in all_dialogs[sid]:
-                title = d.title or "Sans titre"
-                sel = " selected" if d.id == selected_group_id else ""
-                opts.append(f'<option value="{d.id}"{sel}>@ {_esc(label)} — {_esc(title)}</option>')
+        label = session_labels.get(session_id, f"Compte {session_id}")
+        for d in dest_groups:
+            title = d.title or "Sans titre"
+            sel = " selected" if d.id == selected_group_id else ""
+            opts.append(f'<option value="{d.id}"{sel}>@ {_esc(label)} — {_esc(title)}</option>')
+        if not dest_groups:
+            opts.append('<option value="0" disabled>⚠ Aucun groupe où vous êtes admin</option>')
         return "".join(opts)
 
     rows = []
@@ -92,10 +112,9 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
         dest_badge = ""
         if sg and sg.destination_group_id is not None:
             dest_badge = '<span class="badge badge-success text-xs">Destination</span>'
-            for sid in sorted(all_dialogs):
-                for dd in all_dialogs[sid]:
-                    if dd.id == sg.destination_group_id:
-                        dest_label = f"→ {_esc(dd.title or 'Sans titre')} (@ {session_labels.get(sid, '?')})"
+            for dd in dest_groups:
+                if dd.id == sg.destination_group_id:
+                    dest_label = f"→ {_esc(dd.title or 'Sans titre')} (@ {_esc(session_labels.get(session_id, '?'))})"
         if not dest_label:
             dest_label = "À définir"
         select_chk = f'<input type="checkbox" class="checkbox checkbox-sm" name="source_group_ids" value="{sg.id}" hx-trigger="none"/>' if sg else ""
@@ -162,6 +181,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
         <form hx-post="/api/groups/batch-destination" hx-target="#dest-msg"
               hx-include="#gdest-body input[name='source_group_ids']"
               class="flex flex-wrap gap-3 items-end mb-4 p-3" style="background:var(--primary-light); border:1px solid var(--primary-border); border-radius:var(--radius-md);">
+            <input type="hidden" name="session_id" value="{session_id}">
             <div>
                 <label class="fieldset-label">Appliquer une destination</label>
                 <select class="select" name="dest_group_id">
@@ -241,13 +261,11 @@ async def set_destination(
         db.add(sg)
 
     if dest_group_id:
-        dest_session = None
-        for sid, dialogs in (await _all_dialogs_by_session()).items():
-            if any(d.id == dest_group_id for d in dialogs):
-                dest_session = sid
-                break
+        admin_groups = (await _admin_dialogs_by_session()).get(session_id, [])
+        if not any(d.id == dest_group_id for d in admin_groups):
+            return HTMLResponse('<div class="alert alert-error text-xs py-2">Groupe de destination invalide : le compte doit en être créateur ou admin.</div>')
         sg.destination_group_id = dest_group_id
-        sg.destination_session_id = dest_session
+        sg.destination_session_id = session_id
         msg = f'Destination définie pour <strong>{title}</strong>.'
     else:
         sg.destination_group_id = None
@@ -263,6 +281,7 @@ async def batch_destination(
     dest_group_id: int = Form(0),
     source_group_ids: list[int] = Form([]),
     apply_to_all: str = Form(""),
+    session_id: int = Form(0),
     db: AsyncSession = Depends(get_db),
 ):
     guard = _guard(request)
@@ -272,20 +291,21 @@ async def batch_destination(
     r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
     groups = r.scalars().all()
 
+    if dest_group_id:
+        admin_groups = (await _admin_dialogs_by_session()).get(session_id, [])
+        if not any(d.id == dest_group_id for d in admin_groups):
+            return HTMLResponse('<div class="alert alert-error text-xs py-2">Groupe de destination invalide : le compte doit en être créateur ou admin.</div>')
+
+    # Seules les sources du compte courant sont visées (la destination doit lui appartenir).
     if apply_to_all == "on":
-        targets = groups
+        targets = [g for g in groups if g.session_id == session_id]
     else:
-        targets = [g for g in groups if g.id in source_group_ids]
+        targets = [g for g in groups if g.id in source_group_ids and g.session_id == session_id]
 
     if dest_group_id:
-        dest_session = None
-        for sid, dialogs in (await _all_dialogs_by_session()).items():
-            if any(d.id == dest_group_id for d in dialogs):
-                dest_session = sid
-                break
         for g in targets:
             g.destination_group_id = dest_group_id
-            g.destination_session_id = dest_session
+            g.destination_session_id = session_id
         msg = f"Destination appliquée à {len(targets)} source(s)."
     else:
         for g in targets:

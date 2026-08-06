@@ -9,13 +9,13 @@ tags: feature, data-model, migration, relay, UX, destination
 
 # Introduction
 
-Le relais actuel ne gère qu'**une seule destination** (`RelayConfig.destination_group_id`) partagée par toutes les sources actives. La page « Groupes & Canaux Sources » mélange donc les rôles (un seul badge "DESTINATION", un champ global), d'où la confusion. L'objectif est de passer à un modèle **destination par groupe source** : chaque groupe source peut avoir sa propre destination, différente de celle d'une autre source, ou partager une même destination avec d'autres sources. La destination peut être un groupe du **même compte** ou d'un **autre compte connecté** (tant que la session d'émission y est membre).
+Le relais actuel ne gère qu'**une seule destination** (`RelayConfig.destination_group_id`) partagée par toutes les sources actives. La page « Groupes & Canaux Sources » mélange donc les rôles (un seul badge "DESTINATION", un champ global), d'où la confusion. L'objectif est de passer à un modèle **destination par groupe source** : chaque groupe source peut avoir sa propre destination, différente de celle d'une autre source, ou partager une même destination avec d'autres sources. La destination se choisit parmi les **groupes du compte source** dont ce compte est **créateur ou admin** (droit d'écriture garanti par Telethon).
 
 ## Problèmes utilisateur adressés
 - **PRB-001** — Pouvoir définir une **destination différente par groupe source**.
 - **PRB-002** — Permettre à **plusieurs sources de partager la même destination**.
 - **PRB-003** — N'afficher que **3 groupes** → il faut tous les afficher.
-- **PRB-004** — La destination peut être un groupe du **même compte** ou d'un **autre compte connecté**.
+- **PRB-004** — La destination doit être un groupe **créé par le compte** ou **dont le compte est admin** (utilisant le compte relais).
 - **PRB-005** — Ne pas raisonner à l'écran en « compte source » vs « compte destination » : garder une seule liste de comptes connectés, piocher dedans pour les sources ET pour la destination.
 - **PRB-006** — Pouvoir définir une destination en un seul geste : choisir un compte → choisir un groupe de destination.
 
@@ -25,10 +25,10 @@ Le relais actuel ne gère qu'**une seule destination** (`RelayConfig.destination
 - **REQ-002** : **Pas de destination par défaut globale.** Une source sans destination explicite n'est pas reléguée (elle est marquée « À définir » dans l'UI).
 - **REQ-003** : Deux sources peuvent référencer le même `destination_group_id` (partage permis).
 - **REQ-004** : Récupérer et afficher **tous** les dialogues (groupes/canaux) de chaque compte (pagination complète).
-- **REQ-005** : La destination peut venir de n'importe quelle session connectée, du moment que la session d'émission de la source est **membre** du groupe destination.
+- **REQ-005** : La destination est limitée aux **groupes du compte source dont ce compte est créateur ou admin** (droit d'écriture garanti).
 - **REQ-006** : Migration auto de la base (motif déjà présent dans `app/main.py`).
 - **SEC-001** : Aucun secret en clair ; ne pas altérer les `string_session`.
-- **CON-001** : Contrainte Telethon : `forward_messages` est exécuté par le **client source** (`app/telegram/relay.py`). Une destination sur un autre compte fonctionne seulement si la session d'émission y est membre (cas d'un compte relais dédié membre de tout).
+- **CON-001** : Contrainte Telethon : `forward_messages` est exécuté par le **client source** (`app/telegram/relay.py`). Une destination valide doit donc appartenir au **compte source** et celui-ci doit en être **créateur ou admin** pour pouvoir écrire.
 - **CON-002** : Conserver le modèle HTMX actuel (réponses HTML partielles et swaps).
 - **CON-003** : Conserver les guards `get_admin_user` sur chaque route.
 
@@ -116,7 +116,7 @@ Le relais actuel ne gère qu'**une seule destination** (`RelayConfig.destination
 
 - **DEP-001**: Telethon `iter_dialogs`/`get_dialogs` pour récupérer tous les dialogues (PRB-003).
 - **DEP-002**: SQLAlchemy async + migrations incrémentales existantes dans `app/main.py`.
-- **DEP-003**: Contrainte Telegram : session d'émission membre de la destination (CON-001). Aucun nouveau paquet.
+- **DEP-003**: Contrainte Telegram : destination sur le compte source, créateur/admin requis (CON-001). Aucun nouveau paquet.
 ## 5. Files
 
 - **app/db/models.py** — colonnes `destination_group_id`, `destination_session_id`.
@@ -141,7 +141,7 @@ Le relais actuel ne gère qu'**une seule destination** (`RelayConfig.destination
 
 ## 7. Risks & Assumptions
 
-- **RISK-001** : si une session source n'est pas membre de la destination choisie sur un autre compte, `forward_messages` échouera. → Mitigation : valider côté UI que la session source est bien membre, et logger l'erreur proprement.
+- **RISK-001** : `iter_dialogs` peut ne rapporter que les dialogues les plus récents/membres du compte ; si un groupe source n'apparaît pas, il faut retomber sur la recherche. → Mitigation : garder `iter_dialogs` sans limite et, si besoin, enchérir par `client.search_global`/`GetDialogsRequest`.
 - **ASSUMPTION-001** : la destination est obligatoirement stockée sur chaque `SourceGroup` qui doit être reléguée ; pas de fallback global. `RelayConfig.destination_group_id` reste en base mais n'est plus lu.
 
 ## 8. Related Specifications / Further Reading
