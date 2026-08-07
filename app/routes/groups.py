@@ -111,15 +111,6 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             total_rows += 1
             checked = "checked" if d.id in saved and saved[d.id].is_active else ""
             sg = saved.get(d.id)
-            dest_label = ""
-            dest_badge = ""
-            if sg and sg.destination_group_id is not None:
-                dest_badge = '<span class="badge badge-success text-xs">Destination</span>'
-                for dd in admin_dialogs.get(sid, []):
-                    if dd.id == sg.destination_group_id:
-                        dest_label = f"→ {_esc(dd.title or 'Sans titre')}"
-            if not dest_label:
-                dest_label = "À définir"
             escaped_title = _esc(d.title or "Sans titre")
             fictive = _esc(sg.fictive_name) if sg and sg.fictive_name else ""
             rows.append(f"""<tr>
@@ -142,10 +133,6 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             </td>
             <td>
                 <div class="flex flex-col gap-1">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-secondary">{dest_label}</span>
-                        {dest_badge}
-                    </div>
                     <select class="select select-sm" name="dest_{sid}_{d.id}">
                         {dest_options_html(sid, sg.destination_group_id if sg else None)}
                     </select>
