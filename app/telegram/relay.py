@@ -101,19 +101,22 @@ async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int
                     caption = text + (f"\n\nSource: {fictive}" if fictive else "")
 
                     if msg.media:
-                        fd, tmp_path = tempfile.mkstemp(suffix=".media")
-                        os.close(fd)
                         try:
-                            saved = await cl.download_media(msg, file=tmp_path)
-                            if saved:
-                                await cl.send_file(dest_id, saved, caption=caption)
-                            else:
-                                await cl.send_message(dest_id, caption)
-                        finally:
+                            await cl.send_file(dest_id, msg.media, caption=caption)
+                        except Exception:
+                            fd, tmp_path = tempfile.mkstemp(suffix=".bin")
+                            os.close(fd)
                             try:
-                                os.remove(tmp_path)
-                            except OSError:
-                                pass
+                                saved = await cl.download_media(msg, file=tmp_path)
+                                if saved:
+                                    await cl.send_file(dest_id, saved, caption=caption)
+                                else:
+                                    await cl.send_message(dest_id, caption)
+                            finally:
+                                try:
+                                    os.remove(tmp_path)
+                                except OSError:
+                                    pass
                     else:
                         await cl.send_message(dest_id, caption)
                     _run_stats["forwarded"] += 1
