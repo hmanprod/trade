@@ -104,6 +104,13 @@
                 </svg>
                 Démarrer le relais
             </button>
+            <button hx-post="/api/relay/restart" hx-target="#relay-status" hx-disabled-elt="this" hx-indicator="#restart-indicator" class="btn btn-primary">
+                <span id="restart-indicator" class="htmx-indicator spinner"></span>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.882m-.036-2.637A9 9 0 1012 3a8.98 8.98 0 00-7.118 3.364M4 4h0"/>
+                </svg>
+                Redémarrer le relais
+            </button>
             <button hx-post="/api/relay/stop" hx-target="#relay-status" hx-disabled-elt="this" hx-indicator="#stop-indicator" class="btn btn-error">
                 <span id="stop-indicator" class="htmx-indicator spinner"></span>
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">

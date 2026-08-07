@@ -1,4 +1,6 @@
 import logging
+import os
+import tempfile
 from collections import deque
 from datetime import datetime, timezone
 
@@ -95,15 +97,27 @@ async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int
             if cl:
                 try:
                     fictive = _fictives.get(msg.chat_id)
-                    if fictive and msg.text:
-                        prefix = f"\n\nSource: {fictive}"
-                        await cl.send_message(dest_id, msg.text + prefix)
-                        _run_stats["forwarded"] += 1
-                        _run_log.append(f"{_now()} — Copie préfixée {msg.chat_id} → {dest_id} (id {msg.id})")
+                    text = msg.text or ""
+                    caption = text + (f"\n\nSource: {fictive}" if fictive else "")
+
+                    if msg.media:
+                        fd, tmp_path = tempfile.mkstemp(suffix=".media")
+                        os.close(fd)
+                        try:
+                            saved = await cl.download_media(msg, file=tmp_path)
+                            if saved:
+                                await cl.send_file(dest_id, saved, caption=caption)
+                            else:
+                                await cl.send_message(dest_id, caption)
+                        finally:
+                            try:
+                                os.remove(tmp_path)
+                            except OSError:
+                                pass
                     else:
-                        await cl.forward_messages(dest_id, messages=msg.id, from_peer=msg.chat_id)
-                        _run_stats["forwarded"] += 1
-                        _run_log.append(f"{_now()} — Forward chat {msg.chat_id} → {dest_id} (id {msg.id})")
+                        await cl.send_message(dest_id, caption)
+                    _run_stats["forwarded"] += 1
+                    _run_log.append(f"{_now()} — Réédition {msg.chat_id} → {dest_id} (id {msg.id})")
                 except Exception as e:
                     _run_stats["errors"] += 1
                     _run_log.append(f"{_now()} — Erreur envoi : {type(e).__name__}: {e}")

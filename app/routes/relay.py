@@ -16,19 +16,26 @@ def _guard(request: Request):
         return HTMLResponse("Unauthorized", status_code=401)
 
 
-@router.post("/start")
-async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
-    guard = _guard(request)
-    if guard:
-        return guard
+async def reload_relay_if_running(db: AsyncSession) -> bool:
+    """Redémarre le relais si celui-ci était en marche. Retourne True si un redémarrage a eu lieu."""
+    r = await db.execute(select(RelayConfig).limit(1))
+    config = r.scalar_one_or_none()
+    if not (config and config.is_running):
+        return False
+    await stop_relay()
+    await _start_relay_from_db(db)
+    return True
 
+
+async def _start_relay_from_db(db: AsyncSession) -> int | None:
+    """Démarre le relais depuis la config en base. Retourne un message d'erreur ou None."""
     r = await db.execute(select(RelayConfig).limit(1))
     config = r.scalar_one_or_none()
 
     r = await db.execute(select(SourceGroup).where(SourceGroup.is_active == True))
     active_groups = r.scalars().all()
     if not active_groups:
-        return await _status_html(db, "Aucun groupe source actif sélectionné.")
+        return "Aucun groupe source actif sélectionné."
 
     source_ids: dict[int, list[int]] = {}
     dest_map: dict[int, dict[int, int]] = {}
@@ -51,7 +58,28 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
     if config:
         config.is_running = True
         await db.commit()
-    return await _status_html(db, f"{undestined} source(s) sans destination ignorée(s)." if undestined else None)
+    return f"{undestined} source(s) sans destination ignorée(s)." if undestined else None
+
+
+@router.post("/start")
+async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
+    guard = _guard(request)
+    if guard:
+        return guard
+
+    error = await _start_relay_from_db(db)
+    return await _status_html(db, error)
+
+
+@router.post("/restart")
+async def relay_restart(request: Request, db: AsyncSession = Depends(get_db)):
+    guard = _guard(request)
+    if guard:
+        return guard
+
+    await stop_relay()
+    error = await _start_relay_from_db(db)
+    return await _status_html(db, error)
 
 
 @router.post("/stop")

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_db
 from app.db.models import MTProtoSession, SourceGroup
 from app.routes.auth import get_admin_user
+from app.routes.relay import reload_relay_if_running
 from app.telegram.client import multi_telethon_manager
 
 router = APIRouter(prefix="/api/groups")
@@ -262,9 +263,13 @@ async def apply_groups(
 
     await db.commit()
 
+    restart_msg = ""
+    if await reload_relay_if_running(db):
+        restart_msg = ' <span class="text-info">Relais redémarré automatiquement.</span>'
+
     if warnings:
         body = ' '.join(warnings)
-        html = f'<div class="alert alert-warning text-xs py-2">{body}</div>'
+        html = f'<div class="alert alert-warning text-xs py-2">{body}{restart_msg}</div>'
     else:
-        html = f'<div class="alert alert-success text-xs py-2">Modifications appliquées — <strong>{active_count}</strong> source(s) active(s).</div>'
+        html = f'<div class="alert alert-success text-xs py-2">Modifications appliquées — <strong>{active_count}</strong> source(s) active(s).{restart_msg}</div>'
     return HTMLResponse(html)
