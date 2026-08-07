@@ -62,9 +62,14 @@
         </div>
         <form hx-post="/api/config/filters" hx-target="#filters-msg" class="flex gap-3 items-end">
             <div class="flex-1">
-                <label class="fieldset-label">Mots-clés (séparés par des virgules)</label>
-                <input type="text" name="keywords" class="input"
-                       placeholder="ex. bitcoin, ethereum, solana, alerte" id="keywords-input">
+                <label class="fieldset-label">Mots-clés du filtre</label>
+                <div id="keyword-chips" class="chips-container"></div>
+                <div class="flex gap-2 mt-2">
+                    <input type="text" id="keyword-input" class="input flex-1"
+                           placeholder="Ajouter un mot-clé puis Entrée…" autocomplete="off">
+                    <button type="button" id="keyword-add-btn" class="btn btn-sm btn-outline">Ajouter</button>
+                </div>
+                <input type="hidden" name="keywords" id="keywords-input">
             </div>
             <div class="flex items-center gap-2 pb-1">
                 <input type="checkbox" name="enabled" value="on" id="filter-enabled" class="checkbox">
@@ -133,16 +138,81 @@
 </div>
 
 <script>
+    var keywordItems = [];
+    var chipsContainer, keywordInput, hiddenInput, addBtn;
+
+    function syncKeywordInput() {
+        hiddenInput.value = keywordItems.join(',');
+    }
+
+    function renderKeywordChips() {
+        var hidden = keywordItems;
+        chipsContainer.innerHTML = '';
+        if (hidden.length === 0) {
+            var empty = document.createElement('span');
+            empty.className = 'text-sm text-muted';
+            empty.textContent = 'Aucun mot-clé — tous les messages seront transférés.';
+            chipsContainer.appendChild(empty);
+            syncKeywordInput();
+            return;
+        }
+        hidden.forEach(function (kw) {
+            var chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.innerHTML = '<span>' + kw.replace(/[&<>]/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+            }) + '</span>' +
+                '<button type="button" class="chip-remove" aria-label="Retirer ' + kw + '">&times;</button>';
+            chip.querySelector('.chip-remove').addEventListener('click', function () {
+                keywordItems = keywordItems.filter(function (x) { return x !== kw; });
+                renderKeywordChips();
+            });
+            chipsContainer.appendChild(chip);
+        });
+        syncKeywordInput();
+    }
+
+    function addKeywordFromInput() {
+        var val = (keywordInput.value || '').trim();
+        if (!val) return;
+        val.split(',').forEach(function (part) {
+            var kw = part.trim();
+            if (kw && keywordItems.indexOf(kw) === -1) keywordItems.push(kw);
+        });
+        keywordInput.value = '';
+        renderKeywordChips();
+    }
+
+    function initKeywordChips() {
+        chipsContainer = document.getElementById('keyword-chips');
+        keywordInput = document.getElementById('keyword-input');
+        hiddenInput = document.getElementById('keywords-input');
+        addBtn = document.getElementById('keyword-add-btn');
+        if (!chipsContainer || !hiddenInput) return;
+        if (addBtn) addBtn.addEventListener('click', addKeywordFromInput);
+        if (keywordInput) {
+            keywordInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); addKeywordFromInput(); }
+            });
+        }
+    }
+
+    function loadFilters() {
+        fetch('/api/config/filters').then(function (r) { return r.json(); }).then(function (d) {
+            keywordItems = (d.keywords || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            renderKeywordChips();
+            if (document.getElementById('filter-enabled')) {
+                document.getElementById('filter-enabled').checked = !!d.enabled;
+            }
+        });
+    }
+
+    initKeywordChips();
+    loadFilters();
+
     htmx.on('htmx:afterSwap', function(evt) {
         if (evt.detail.target.id === 'relay-status') {
-            fetch('/api/config/filters').then(r => r.json()).then(d => {
-                if (document.getElementById('keywords-input')) {
-                    document.getElementById('keywords-input').value = d.keywords || '';
-                }
-                if (document.getElementById('filter-enabled')) {
-                    document.getElementById('filter-enabled').checked = !!d.enabled;
-                }
-            });
+            loadFilters();
         }
     });
 
