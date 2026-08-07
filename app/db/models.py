@@ -45,6 +45,7 @@ class SourceGroup(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     group_id: Mapped[int] = mapped_column(BigInteger)
     title: Mapped[str] = mapped_column(String(256))
+    fictive_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     session_id: Mapped[int] = mapped_column(Integer, ForeignKey("mtproto_session.id"))
     destination_group_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

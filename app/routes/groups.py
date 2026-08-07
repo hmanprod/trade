@@ -120,12 +120,17 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
             if not dest_label:
                 dest_label = "À définir"
             escaped_title = _esc(d.title or "Sans titre")
+            fictive = _esc(sg.fictive_name) if sg and sg.fictive_name else ""
             rows.append(f"""<tr>
             <td>
                 <div class="font-semibold">{d.title or "Sans titre"}</div>
             </td>
             <td>
                 <span class="badge badge-neutral">{_esc(account_label)}</span>
+            </td>
+            <td>
+                <input type="text" class="input input-sm" name="fictive_{sid}_{d.id}"
+                       value="{fictive}" placeholder="Nom fictif">
             </td>
             <td>
                 <label class="flex items-center gap-2 cursor-pointer">
@@ -188,6 +193,7 @@ async def list_groups(request: Request, session_id: int = 0, db: AsyncSession = 
                         <tr>
                             <th>Groupe / Canal</th>
                             <th>Compte</th>
+                            <th>Nom fictif</th>
                             <th>Source à scraper</th>
                             <th>Destination</th>
                         </tr>
@@ -237,6 +243,11 @@ async def apply_groups(
             is_active = form.get(f"source_{sid}_{group_id}") is not None
             sg.is_active = is_active
             sg.title = title
+            fictive_val = form.get(f"fictive_{sid}_{group_id}")
+            if fictive_val is not None:
+                fictive = fictive_val.strip() or None
+                if fictive != sg.fictive_name:
+                    sg.fictive_name = fictive
             if is_active:
                 active_count += 1
 

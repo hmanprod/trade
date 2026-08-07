@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
             ("relay_config", "filter_enabled", "BOOLEAN DEFAULT TRUE"),
             ("source_groups", "destination_group_id", "BIGINT"),
             ("source_groups", "destination_session_id", "INTEGER REFERENCES mtproto_session(id)"),
+            ("source_groups", "fictive_name", "VARCHAR(128)"),
         ]:
             r = await conn.execute(
                 text("SELECT 1 FROM information_schema.columns WHERE table_name=:t AND column_name=:c"),

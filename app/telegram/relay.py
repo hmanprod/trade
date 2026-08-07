@@ -52,17 +52,19 @@ def _check_and_cache(msg_id: int, chat_id: int) -> bool:
     return False
 
 
-async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int, dict[int, int]], keywords: list[str] | None = None):
+async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int, dict[int, int]], keywords: list[str] | None = None, fictive_names: dict[int, dict[int, str]] | None = None):
     reset_run()
     _run_log.append(f"{_now()} — Démarrage du relais ({len(source_group_ids)} compte(s) avec sources)")
+    fictive_names = fictive_names or {}
     for session_id, client in multi_telethon_manager.get_all():
         group_ids = source_group_ids.get(session_id, [])
         if not group_ids:
             continue
 
         session_dests = dest_map.get(session_id, {})
+        session_fictives = fictive_names.get(session_id, {})
 
-        async def handler(event: events.NewMessage.Event, _sid=session_id, _gids=group_ids, _dests=session_dests):
+        async def handler(event: events.NewMessage.Event, _sid=session_id, _gids=group_ids, _dests=session_dests, _fictives=session_fictives):
             msg = event.message
             _run_stats["received"] += 1
             if not msg or not msg.chat_id:
@@ -92,13 +94,20 @@ async def start_relay(source_group_ids: dict[int, list[int]], dest_map: dict[int
             cl = multi_telethon_manager.get(_sid)
             if cl:
                 try:
-                    await cl.forward_messages(dest_id, messages=msg.id, from_peer=msg.chat_id)
-                    _run_stats["forwarded"] += 1
-                    _run_log.append(f"{_now()} — Forward chat {msg.chat_id} → {dest_id} (id {msg.id})")
+                    fictive = _fictives.get(msg.chat_id)
+                    if fictive and msg.text:
+                        prefix = f"\n\nSource: {fictive}"
+                        await cl.send_message(dest_id, msg.text + prefix)
+                        _run_stats["forwarded"] += 1
+                        _run_log.append(f"{_now()} — Copie préfixée {msg.chat_id} → {dest_id} (id {msg.id})")
+                    else:
+                        await cl.forward_messages(dest_id, messages=msg.id, from_peer=msg.chat_id)
+                        _run_stats["forwarded"] += 1
+                        _run_log.append(f"{_now()} — Forward chat {msg.chat_id} → {dest_id} (id {msg.id})")
                 except Exception as e:
                     _run_stats["errors"] += 1
-                    _run_log.append(f"{_now()} — Erreur forward : {type(e).__name__}: {e}")
-                    logger.exception("Forward failed chat=%s dest=%s", msg.chat_id, dest_id)
+                    _run_log.append(f"{_now()} — Erreur envoi : {type(e).__name__}: {e}")
+                    logger.exception("Send failed chat=%s dest=%s", msg.chat_id, dest_id)
 
         client.add_event_handler(handler, events.NewMessage)
         _event_handlers[session_id] = handler

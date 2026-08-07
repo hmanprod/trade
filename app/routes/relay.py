@@ -32,9 +32,12 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
 
     source_ids: dict[int, list[int]] = {}
     dest_map: dict[int, dict[int, int]] = {}
+    fictive_names: dict[int, dict[int, str]] = {}
     undestined = 0
     for g in active_groups:
         source_ids.setdefault(g.session_id, []).append(g.group_id)
+        if g.fictive_name:
+            fictive_names.setdefault(g.session_id, {})[g.group_id] = g.fictive_name
         if g.destination_group_id is not None:
             dest_map.setdefault(g.session_id, {})[g.group_id] = g.destination_group_id
         else:
@@ -44,7 +47,7 @@ async def relay_start(request: Request, db: AsyncSession = Depends(get_db)):
     if config and config.filter_enabled:
         keywords = [kw.strip() for kw in (config.filter_keywords or "").split(",") if kw.strip()] or None
 
-    await start_relay(source_ids, dest_map, keywords)
+    await start_relay(source_ids, dest_map, keywords, fictive_names=fictive_names)
     if config:
         config.is_running = True
         await db.commit()
